@@ -54,14 +54,6 @@ Seat 4: FlopSavvy folded on the Pre-Flop and did not bet
 Seat 6: IveysAFraud folded on the Pre-Flop and did not bet
 """
 
-#   Need to seperate: hand number, game type, stakes, time and date, table name, table size, where the button is
-#   each seat with the player name and player stack size, the small blind and big blind posting the blinds
-#   being deal the hole cards, the preflop action, then the flop cards, then the flop actions
-#   then the turn cards, then the turn action, then the river cards, then the river actions
-#   showdown, which is the (main) pot with rake, then each player's holding, then the winner(s) collection the pot(s)
-#   summary, the total pot size with rake and jackpot, the total board seen, what each seat had and won/lost
-#   unless that player folded, which they are just noted as not having bet
-
 # IMPORT
 import csv
 import re
@@ -81,7 +73,7 @@ PLAYER_NAME = ""
 PLAYER_SEAT = 0
 PLAYER_STACK = 0
 PLAYERS = {}  # name: [seat, stack]
-HANDS = {}
+HANDS = {}  # hand_no: [table_name, players, table_size, button_position, game_type, limit_type, stake_size, time, date]
 
 # HAND HISTORY LOCATION
 HAND_HISTORY = r"C:\AmericasCardroom\handHistory\PolarFox\HH20201106 CASHID-G22721376T18 TN-Powhattan GAMETYPE-Omaha " \
@@ -91,6 +83,7 @@ HAND_HISTORY = r"C:\AmericasCardroom\handHistory\PolarFox\HH20201106 CASHID-G227
 with open(HAND_HISTORY, 'r') as csv_file:
     csv_reader = list(csv.reader(csv_file, delimiter="\n"))
     while INDEX != len(csv_reader):
+        # print(csv_reader[INDEX])
         csv_reader[INDEX] = re.sub("- |[|] ", "", str(csv_reader[INDEX]))
         if "Hand" in str(csv_reader[INDEX]):
             HAND_NO = csv_reader[INDEX] \
@@ -103,7 +96,6 @@ with open(HAND_HISTORY, 'r') as csv_file:
             GAME_TYPE = "Omaha"
         if "No Limit" in str(csv_reader[INDEX]):
             LIMIT_TYPE = "No Limit"
-            HANDS[HAND_NO] = [GAME_TYPE, LIMIT_TYPE, STAKE_SIZE, DATE, TIME]
         if "-max" in csv_reader[INDEX]:
             TABLE_NAME = csv_reader[INDEX][2:csv_reader[INDEX].index(" ")]
             TABLE_SIZE = csv_reader[INDEX][csv_reader[INDEX].index(" ") + 1:csv_reader[INDEX].index(" ", csv_reader[
@@ -114,11 +106,16 @@ with open(HAND_HISTORY, 'r') as csv_file:
                 if "is the button" not in csv_reader[INDEX]:
                     if "folded on" not in csv_reader[INDEX]:
                         if "will be allowed" not in csv_reader[INDEX]:
+                            # print(csv_reader[INDEX])
                             PLAYER_NAME = csv_reader[INDEX][csv_reader[INDEX].index(":") + 2:
                                                             csv_reader[INDEX].index("(") - 1]
                             PLAYER_SEAT = csv_reader[INDEX][csv_reader[INDEX].index(" ") + 1]
                             PLAYER_STACK = csv_reader[INDEX][csv_reader[INDEX].index("$") + 1:
                                                              csv_reader[INDEX].index(")")]
                             PLAYERS[PLAYER_NAME] = [PLAYER_SEAT, PLAYER_STACK]
-        HANDS[HAND_NO] = [TABLE_NAME, TABLE_SIZE, BUTTON_POSITION, GAME_TYPE, LIMIT_TYPE, STAKE_SIZE, TIME, DATE]
+        if "HOLE CARDS" in csv_reader[INDEX]:
+            HANDS[HAND_NO] = [
+                TABLE_NAME, PLAYERS, TABLE_SIZE, BUTTON_POSITION, GAME_TYPE, LIMIT_TYPE, STAKE_SIZE, TIME, DATE]
+            PLAYERS = {}
         INDEX += 1
+        # print(f"setting INDEX to {INDEX}")
