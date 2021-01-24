@@ -1,5 +1,5 @@
 """
-EXAMPLE HAND:
+EXAMPLE HAND:"
 
 Hand #576909116 - Omaha(No Limit) - $0.01/$0.02 - 2020/11/06 21:14:59 UTC
 Powhattan 6-max Seat #1 is the button
@@ -52,6 +52,8 @@ Seat 2: Kattitude (small blind) showed [Tc Jc Ac Qc] and lost with a pair of Ace
 Seat 3: ragu_sauce (big blind) showed [2c 6h 6s 7c] and won $5.05 with three of a kind, Set of Sixes [6s 6h 6d As Kh]
 Seat 4: FlopSavvy folded on the Pre-Flop and did not bet
 Seat 6: IveysAFraud folded on the Pre-Flop and did not bet
+
+"
 """
 
 """
@@ -97,6 +99,14 @@ def session_file_reader(file):
                 if str(file_reader[index])[str(file_reader[index]).index("(") + 1] == "$":
                     return True
 
+    def check_for_small_blind(file_row):
+        if " small blind " in str(file_row):
+            return True
+
+    def check_for_big_blind(file_row):
+        if " big blind " in str(file_row):
+            return True
+
     def check_for_hole_cards(file_row):
         if "*** HOLE CARDS ***" in str(file_row):
             return True
@@ -111,6 +121,10 @@ def session_file_reader(file):
         if check_for_player(file_reader[index]):
             player_names.append(str(file_reader[index])[str(file_reader[index]).index(":") + 2:
                                 str(file_reader[index]).index("(") - 1])
+        if check_for_small_blind(file_reader[index]):
+            small_blind = str(file_reader[index])[2:str(file_reader[index]).index(" ")]
+        if check_for_big_blind(file_reader[index]):
+            big_blind = str(file_reader[index])[2:str(file_reader[index]).index(" ")]
         if check_for_hole_cards(file_reader[index]):
             hand_players[hand_numbers[hand_count - 1]] = player_names
             player_names = []
@@ -118,4 +132,4 @@ def session_file_reader(file):
     return table_name, stake_size, table_size, hand_start_times[0], hand_start_times[-1], hand_count, hand_players
 
 
-print(session_file_reader(SESSIONS_DIR[0]))
+print(session_file_reader(SESSIONS_DIR[1]))
