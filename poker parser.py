@@ -74,26 +74,29 @@ for file in SESSIONS_DIR:
 def session_file_reader(file):
     index = 0
     hand_count = 0
-    times = []
+    hand_start_times = []
+    hand_numbers = []
     session_file = open(HAND_HISTORY_DIR + file, 'r')
     file_reader = list(csv.reader(session_file, delimiter="r"))
-    stake_size = str(file_reader[0]
-                     )[str(file_reader[0]).index("$"):str(file_reader[0]).index(" ", str(file_reader[0]).index("$"))]
+    stake_size = str(file_reader[0])[str(file_reader[0]).index("$"):
+                                     str(file_reader[0]).index(" ", str(file_reader[0]).index("$"))]
     table_name = str(file_reader[1])[2:str(file_reader[1]).index(" ")]
-    table_size = str(
-        file_reader[1])[str(file_reader[1]).index(" ") + 1:str(file_reader[1]).index(" ", str(file_reader[1]).index(" ") + 1)]
+    table_size = str(file_reader[1])[str(file_reader[1]).index(" ") + 1:
+                                     str(file_reader[1]).index(" ", str(file_reader[1]).index(" ") + 1)]
 
-    def check_date_name(file_row):
+    def check_for_hand(file_row):
         if "Hand #" in str(file_row):
             return True
 
     while index != len(file_reader):
-        if check_date_name(file_reader[index]):
-            times.append(
-                str(file_reader[index])[str(file_reader[index]).index(":") - 13:str(file_reader[index]).index("U") - 1])
+        if check_for_hand(file_reader[index]):
+            hand_numbers.append(str(file_reader[index])[str(file_reader[index]).index("#") + 1:
+                                                        str(file_reader[index]).index("-") - 1])
+            hand_start_times.append(str(file_reader[index])[str(file_reader[index]).index(":") - 13:
+                                                            str(file_reader[index]).index("U") - 1])
             hand_count += 1
         index += 1
-    return table_name, stake_size, table_size, times[0], times[-1], hand_count
+    return table_name, stake_size, table_size, hand_start_times[0], hand_start_times[-1], hand_count, hand_numbers
 
 
 print(session_file_reader(SESSIONS_DIR[0]))
