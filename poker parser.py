@@ -54,68 +54,46 @@ Seat 4: FlopSavvy folded on the Pre-Flop and did not bet
 Seat 6: IveysAFraud folded on the Pre-Flop and did not bet
 """
 
+"""
+Design function that returns the csv document or to store it as a variable?
+SESSION -> TABLE -> HAND -> PLAYERS for tables
+"""
+
 # IMPORT
 import csv
-import re
+import os
 
-# PLACEHOLDER VARIABLES
-INDEX = 0
-HAND_NO = 0
-GAME_TYPE = ""
-LIMIT_TYPE = ""
-STAKE_SIZE = ""
-TIME = ""
-DATE = ""
-TABLE_NAME = ""
-TABLE_SIZE = 0
-BUTTON_POSITION = 0
-PLAYER_NAME = ""
-PLAYER_SEAT = 0
-PLAYER_STACK = 0
-PLAYERS = {}  # name: [seat, stack]
-HANDS = {}  # hand_no: [table_name, players, table_size, button_position, game_type, limit_type, stake_size, time, date]
+HAND_HISTORY_DIR = r"C:\AmericasCardroom\handHistory\PolarFox\\"
+SESSIONS_DIR = os.listdir(HAND_HISTORY_DIR)
+SESSION_FILES = []
+SESSIONS = {}
+for file in SESSIONS_DIR:
+    SESSION_FILES.append(file)
 
-# HAND HISTORY LOCATION
-HAND_HISTORY = r"C:\AmericasCardroom\handHistory\PolarFox\HH20201106 CASHID-G22721376T18 TN-Powhattan GAMETYPE-Omaha " \
-               r"LIMIT-no CUR-REAL OND-F BUYIN-0 MIN-1 MAX-2.txt "
 
-# CSV PARSING
-with open(HAND_HISTORY, 'r') as csv_file:
-    csv_reader = list(csv.reader(csv_file, delimiter="\n"))
-    while INDEX != len(csv_reader):
-        # print(csv_reader[INDEX])
-        csv_reader[INDEX] = re.sub("- |[|] ", "", str(csv_reader[INDEX]))
-        if "Hand" in str(csv_reader[INDEX]):
-            HAND_NO = csv_reader[INDEX] \
-                [csv_reader[INDEX].index("#") + 1:csv_reader[INDEX].index(" ", csv_reader[INDEX].index("#"))]
-            STAKE_SIZE = csv_reader[INDEX] \
-                [csv_reader[INDEX].index("$"):csv_reader[INDEX].index(" ", csv_reader[INDEX].index("$"))]
-            TIME = csv_reader[INDEX][csv_reader[INDEX].index(":") - 2:csv_reader[INDEX].index("UTC") + 3]
-            DATE = csv_reader[INDEX][csv_reader[INDEX].index("/", csv_reader[INDEX].index("/") + 1) - 4:-15]
-        if "Omaha" in str(csv_reader[INDEX]):
-            GAME_TYPE = "Omaha"
-        if "No Limit" in str(csv_reader[INDEX]):
-            LIMIT_TYPE = "No Limit"
-        if "-max" in csv_reader[INDEX]:
-            TABLE_NAME = csv_reader[INDEX][2:csv_reader[INDEX].index(" ")]
-            TABLE_SIZE = csv_reader[INDEX][csv_reader[INDEX].index(" ") + 1:csv_reader[INDEX].index(" ", csv_reader[
-                INDEX].index(" ") + 1)]
-            BUTTON_POSITION = csv_reader[INDEX][csv_reader[INDEX].index("#") + 1]
-        if "Seat" in csv_reader[INDEX]:
-            if "and" not in csv_reader[INDEX]:
-                if "is the button" not in csv_reader[INDEX]:
-                    if "folded on" not in csv_reader[INDEX]:
-                        if "will be allowed" not in csv_reader[INDEX]:
-                            # print(csv_reader[INDEX])
-                            PLAYER_NAME = csv_reader[INDEX][csv_reader[INDEX].index(":") + 2:
-                                                            csv_reader[INDEX].index("(") - 1]
-                            PLAYER_SEAT = csv_reader[INDEX][csv_reader[INDEX].index(" ") + 1]
-                            PLAYER_STACK = csv_reader[INDEX][csv_reader[INDEX].index("$") + 1:
-                                                             csv_reader[INDEX].index(")")]
-                            PLAYERS[PLAYER_NAME] = [PLAYER_SEAT, PLAYER_STACK]
-        if "HOLE CARDS" in csv_reader[INDEX]:
-            HANDS[HAND_NO] = [
-                TABLE_NAME, PLAYERS, TABLE_SIZE, BUTTON_POSITION, GAME_TYPE, LIMIT_TYPE, STAKE_SIZE, TIME, DATE]
-            PLAYERS = {}
-        INDEX += 1
-        # print(f"setting INDEX to {INDEX}")
+def session_file_reader(file):
+    index = 0
+    hand_count = 0
+    times = []
+    session_file = open(HAND_HISTORY_DIR + file, 'r')
+    file_reader = list(csv.reader(session_file, delimiter="r"))
+    stake_size = str(file_reader[0]
+                     )[str(file_reader[0]).index("$"):str(file_reader[0]).index(" ", str(file_reader[0]).index("$"))]
+    table_name = str(file_reader[1])[2:str(file_reader[1]).index(" ")]
+    table_size = str(
+        file_reader[1])[str(file_reader[1]).index(" ") + 1:str(file_reader[1]).index(" ", str(file_reader[1]).index(" ") + 1)]
+
+    def check_date_name(file_row):
+        if "Hand #" in str(file_row):
+            return True
+
+    while index != len(file_reader):
+        if check_date_name(file_reader[index]):
+            times.append(
+                str(file_reader[index])[str(file_reader[index]).index(":") - 13:str(file_reader[index]).index("U") - 1])
+            hand_count += 1
+        index += 1
+    return table_name, stake_size, table_size, times[0], times[-1], hand_count
+
+
+print(session_file_reader(SESSIONS_DIR[0]))
