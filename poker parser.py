@@ -62,6 +62,7 @@ SESSION -> TABLE -> HAND -> PLAYERS for tables
 # IMPORT
 import csv
 import os
+import re
 
 HAND_HISTORY_DIR = r"C:\AmericasCardroom\handHistory\PolarFox\\"
 SESSIONS_DIR = os.listdir(HAND_HISTORY_DIR)
@@ -76,8 +77,10 @@ def session_file_reader(file):
     hand_count = 0
     hand_start_times = []
     hand_numbers = []
+    player_names = []
+    hand_players = {}
     session_file = open(HAND_HISTORY_DIR + file, 'r')
-    file_reader = list(csv.reader(session_file, delimiter="r"))
+    file_reader = list(csv.reader(session_file, delimiter="\n"))
     stake_size = str(file_reader[0])[str(file_reader[0]).index("$"):
                                      str(file_reader[0]).index(" ", str(file_reader[0]).index("$"))]
     table_name = str(file_reader[1])[2:str(file_reader[1]).index(" ")]
@@ -88,6 +91,16 @@ def session_file_reader(file):
         if "Hand #" in str(file_row):
             return True
 
+    def check_for_player(file_row):
+        if "Seat " in str(file_row):
+            if "(" in str(file_row):
+                if str(file_reader[index])[str(file_reader[index]).index("(") + 1] == "$":
+                    return True
+
+    def check_for_hole_cards(file_row):
+        if "*** HOLE CARDS ***" in str(file_row):
+            return True
+
     while index != len(file_reader):
         if check_for_hand(file_reader[index]):
             hand_numbers.append(str(file_reader[index])[str(file_reader[index]).index("#") + 1:
@@ -95,8 +108,14 @@ def session_file_reader(file):
             hand_start_times.append(str(file_reader[index])[str(file_reader[index]).index(":") - 13:
                                                             str(file_reader[index]).index("U") - 1])
             hand_count += 1
+        if check_for_player(file_reader[index]):
+            player_names.append(str(file_reader[index])[str(file_reader[index]).index(":") + 2:
+                                str(file_reader[index]).index("(") - 1])
+        if check_for_hole_cards(file_reader[index]):
+            hand_players[hand_numbers[hand_count - 1]] = player_names
+            player_names = []
         index += 1
-    return table_name, stake_size, table_size, hand_start_times[0], hand_start_times[-1], hand_count, hand_numbers
+    return table_name, stake_size, table_size, hand_start_times[0], hand_start_times[-1], hand_count, hand_players
 
 
 print(session_file_reader(SESSIONS_DIR[0]))
