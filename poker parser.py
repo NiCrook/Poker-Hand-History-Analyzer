@@ -79,8 +79,8 @@ def session_file_reader(file):
     hand_count = 0
     hand_start_times = []
     hand_numbers = []
-    player_names = []
-    hand_players = {}
+    player_names = []   # player_name: position
+    hand_players = {}   # hand_number: [player_names]
     session_file = open(HAND_HISTORY_DIR + file, 'r')
     file_reader = list(csv.reader(session_file, delimiter="\n"))
     stake_size = str(file_reader[0])[str(file_reader[0]).index("$"):
@@ -91,6 +91,10 @@ def session_file_reader(file):
 
     def check_for_hand(file_row):
         if "Hand #" in str(file_row):
+            return True
+
+    def check_for_button(file_row):
+        if "is the button" in str(file_row):
             return True
 
     def check_for_player(file_row):
@@ -118,6 +122,9 @@ def session_file_reader(file):
             hand_start_times.append(str(file_reader[index])[str(file_reader[index]).index(":") - 13:
                                                             str(file_reader[index]).index("U") - 1])
             hand_count += 1
+        if check_for_button(file_reader[index]):
+            button_position = str(file_reader[index])[str(file_reader[index]).index("#") + 1]
+            print(button_position)
         if check_for_player(file_reader[index]):
             player_names.append(str(file_reader[index])[str(file_reader[index]).index(":") + 2:
                                 str(file_reader[index]).index("(") - 1])
@@ -132,4 +139,4 @@ def session_file_reader(file):
     return table_name, stake_size, table_size, hand_start_times[0], hand_start_times[-1], hand_count, hand_players
 
 
-print(session_file_reader(SESSIONS_DIR[1]))
+print(session_file_reader(SESSIONS_DIR[0]))
