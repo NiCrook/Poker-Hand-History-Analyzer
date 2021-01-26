@@ -120,6 +120,8 @@ def session_file_reader(file):
 
     session_file = open(HAND_HISTORY_DIR + file, 'r')
     file_reader = list(csv.reader(session_file, delimiter="\n"))
+    game_type = str(file_reader[0])[str(file_reader[0]).index("-") + 2:str(file_reader[0]).index("(")]
+    limit_type = str(file_reader[0])[str(file_reader[0]).index("(") + 1:str(file_reader[0]).index(")")]
     limit_size = str(file_reader[0])[str(file_reader[0]).index("$"):
                                      str(file_reader[0]).index(" ", str(file_reader[0]).index("$"))]
     table_name = str(file_reader[1])[2:str(file_reader[1]).index(" ")]
@@ -142,8 +144,8 @@ def session_file_reader(file):
         if check_for_blind_post(file_reader[index]):
             print(check_for_blind_poster(file_reader[index]))
         index += 1
-    return table_name, limit_size, table_size, hand_start_times[0], hand_start_times[
-        -1], hand_count, player_names, player_seats
+    return table_name, game_type, limit_type, limit_size, table_size, hand_start_times[0], hand_start_times[-1],\
+           hand_count, player_names, player_seats
 
 
 print(session_file_reader(SESSIONS_DIR[2]))
