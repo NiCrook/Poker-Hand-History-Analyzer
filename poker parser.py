@@ -75,19 +75,23 @@ sql_connection = mysql.connect(
 )
 cursor = sql_connection.cursor(buffered=True)
 
-HAND_HISTORY_DB = {'Tables': (
+HAND_HISTORY_DB_NAME = 'Hand_History'
+HAND_HISTORY_DB_TABLES = {}
+HAND_HISTORY_DB_TABLES['Tables'] = (
     "CREATE TABLE `Tables` ("
-    "`Table Name` varchar(36),"
-    "`Table Date` date NOT NULL"
-    ") ENGINE=InnoDB"), 'Hands': (
+    "   `Table Name` varchar(36),"
+    "   `Table Date` date NOT NULL"
+    ") ENGINE=InnoDB")
+HAND_HISTORY_DB_TABLES['Hands'] = (
     "CREATE TABLE `Hands` ("
-    "`Hand Number` int(9),"
-    "`Hand Date` date NOT NULL"
-    ") ENGINE=InnoDB"), 'Players': (
+    "   `Hand Number` int(9),"
+    "   `Hand Date` date NOT NULL"
+    ") ENGINE=InnoDB")
+HAND_HISTORY_DB_TABLES['Players'] = (
     "CREATE TABLE `Players` ("
-    "`Player` varchar(16),"
-    "`Hands Played` int(999)"
-    ") ENGINE=InnoDB")}
+    "   `Player` varchar(16),"
+    "   `Hands Played` int(9)"
+    ") ENGINE=InnoDB")
 
 HAND_HISTORY_DIR = r"C:\AmericasCardroom\handHistory\PolarFox\\"
 SESSIONS_DIR = os.listdir(HAND_HISTORY_DIR)
@@ -99,7 +103,7 @@ for file in SESSIONS_DIR:
 
 def create_sql_database(cursor, db_name):
     try:
-        cursor.execute(f"CREATE DATABASE {db_name} DEFAULT CHARACTER SET 'utf8")
+        cursor.execute(f"CREATE DATABASE {db_name} DEFAULT CHARACTER SET 'utf8'")
     except mysql.Error as err:
         print(f"Failed to create database: {err}\n")
         exit(1)
@@ -157,6 +161,35 @@ def session_file_reader(file):
         index += 1
     return table_name, limit_size, table_size, hand_start_times[0], hand_start_times[
         -1], hand_count, player_names, player_seats, blinds_posted
+
+
+try:
+    cursor.execute(f"USE {HAND_HISTORY_DB_NAME}")
+except mysql.Error as err:
+    print(f"Database {HAND_HISTORY_DB_NAME} does not exist.")
+    if err.errno == errorcode.ER_BAD_DB_ERROR:
+        create_sql_database(cursor, HAND_HISTORY_DB_NAME)
+        print(f"Database {HAND_HISTORY_DB_NAME} created successfully.")
+        sql_connection.database = HAND_HISTORY_DB_NAME
+    else:
+        print(err)
+        exit(1)
+
+for table_name in HAND_HISTORY_DB_TABLES:
+    table_description = HAND_HISTORY_DB_TABLES[table_name]
+    try:
+        print(f"Creating table: {table_name}")
+        cursor.execute(table_description)
+        print(f"Created table: {table_name} successfully")
+    except mysql.Error as err:
+        if err.errno == errorcode.ER_TABLE_EXISTS_ERROR:
+            print(f"Table {table_name} already exists.")
+        else:
+            print(err.msg)
+cursor.execute("SHOW TABLES")
+sql_connection.commit()
+sql_connection.close()
+cursor.close()
 
 
 print(session_file_reader(SESSIONS_DIR[0]))
