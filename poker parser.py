@@ -1,3 +1,10 @@
+# IMPORT
+import csv
+from datetime import datetime
+import mysql.connector as mysql
+from mysql.connector import errorcode
+import os
+
 """
 EXAMPLE HAND:"
 
@@ -61,9 +68,26 @@ Design function that returns the csv document or to store it as a variable?
 SESSION -> TABLE -> HAND -> PLAYERS for tables
 """
 
-# IMPORT
-import csv
-import os
+sql_connection = mysql.connect(
+    host="localhost",
+    user="root",
+    password="password"
+)
+cursor = sql_connection.cursor(buffered=True)
+
+HAND_HISTORY_DB = {'Tables': (
+    "CREATE TABLE `Tables` ("
+    "`Table Name` varchar(36),"
+    "`Table Date` date NOT NULL"
+    ") ENGINE=InnoDB"), 'Hands': (
+    "CREATE TABLE `Hands` ("
+    "`Hand Number` int(9),"
+    "`Hand Date` date NOT NULL"
+    ") ENGINE=InnoDB"), 'Players': (
+    "CREATE TABLE `Players` ("
+    "`Player` varchar(16),"
+    "`Hands Played` int(999)"
+    ") ENGINE=InnoDB")}
 
 HAND_HISTORY_DIR = r"C:\AmericasCardroom\handHistory\PolarFox\\"
 SESSIONS_DIR = os.listdir(HAND_HISTORY_DIR)
@@ -73,40 +97,17 @@ for file in SESSIONS_DIR:
     SESSION_FILES.append(file)
 
 
-def check_for_hand(file_row):
-    if "Hand #" in str(file_row):
+def create_sql_database(cursor, db_name):
+    try:
+        cursor.execute(f"CREATE DATABASE {db_name} DEFAULT CHARACTER SET 'utf8")
+    except mysql.Error as err:
+        print(f"Failed to create database: {err}\n")
+        exit(1)
+
+
+def check_row(file_row, string_check):
+    if string_check in str(file_row):
         return True
-
-
-def check_for_button(file_row):
-    if "is the button" in str(file_row):
-        return True
-
-
-def check_for_player(file_row):
-    if "Seat " in str(file_row):
-        if "($" in str(file_row):
-            return True
-
-
-def check_for_blind_post(file_row):
-    if " posts " in str(file_row):
-        return True
-
-
-def check_for_blind_poster(file_row):
-    if "the small blind" in str(file_row):
-        small_blind = str(file_row)[2:str(file_row).index(" ")]
-        return small_blind
-    if "the big blind" in str(file_row):
-        big_blind = str(file_row)[2:str(file_row).index(" ")]
-        return big_blind
-    if "posts $" in str(file_row):
-        extra_blind = str(file_row)[2:str(file_row).index(" ")]
-        return extra_blind
-    if "posts dead" in str(file_row):
-        dead_blind = str(file_row)[2:str(file_row).index(" ")]
-        return dead_blind
 
 
 def session_file_reader(file):
@@ -117,35 +118,45 @@ def session_file_reader(file):
     hand_numbers = []
     player_names = []
     player_seats = []
+    blinds_posted = {}
 
     session_file = open(HAND_HISTORY_DIR + file, 'r')
     file_reader = list(csv.reader(session_file, delimiter="\n"))
+
     game_type = str(file_reader[0])[str(file_reader[0]).index("-") + 2:str(file_reader[0]).index("(")]
     limit_type = str(file_reader[0])[str(file_reader[0]).index("(") + 1:str(file_reader[0]).index(")")]
     limit_size = str(file_reader[0])[str(file_reader[0]).index("$"):
                                      str(file_reader[0]).index(" ", str(file_reader[0]).index("$"))]
+
     table_name = str(file_reader[1])[2:str(file_reader[1]).index(" ")]
     table_size = str(file_reader[1])[str(file_reader[1]).index(" ") + 1:
                                      str(file_reader[1]).index(" ", str(file_reader[1]).index(" ") + 1)]
 
     while index != len(file_reader):
-        if check_for_hand(file_reader[index]):
+        if check_row(file_reader[index], "Hand #"):
             hand_numbers.append(str(file_reader[index])[str(file_reader[index]).index("#") + 1:
                                                         str(file_reader[index]).index("-") - 1])
             hand_start_times.append(str(file_reader[index])[str(file_reader[index]).index(":") - 13:
                                                             str(file_reader[index]).index("U") - 1])
             hand_count += 1
-        if check_for_button(file_reader[index]):
+        if check_row(file_reader[index], "is the button"):
             button_position = str(file_reader[index])[str(file_reader[index]).index("#") + 1]
-        if check_for_player(file_reader[index]):
-            player_names.append(
-                str(file_reader[index])[str(file_reader[index]).index(":") + 2:str(file_reader[index]).index("(") - 1])
-            player_seats.append(str(file_reader[index])[7])
-        if check_for_blind_post(file_reader[index]):
-            print(check_for_blind_poster(file_reader[index]))
+        if check_row(file_reader[index], "Seat "):
+            if check_row(file_reader[index], "($"):
+                player_names.append(str(file_reader[index])[str(file_reader[index]).index(":") + 2:
+                                                            str(file_reader[index]).index("(") - 1])
+                player_seats.append(str(file_reader[index])[7])
+        if check_row(file_reader[index], "the small blind"):
+            blinds_posted["Small Blind"] = str(file_reader[index])[2:str(file_reader[index]).index(" ")]
+        if check_row(file_reader[index], "the big blind"):
+            blinds_posted["Big Blind"] = str(file_reader[index])[2:str(file_reader[index]).index(" ")]
+        if check_row(file_reader[index], "posts $"):
+            blinds_posted["Extra Blind"] = str(file_reader[index])[2:str(file_reader[index]).index(" ")]
+        if check_row(file_reader[index], "posts dead"):
+            blinds_posted["Dead Blind"] = str(file_reader[index])[2:str(file_reader[index]).index(" ")]
         index += 1
-    return table_name, game_type, limit_type, limit_size, table_size, hand_start_times[0], hand_start_times[-1],\
-           hand_count, player_names, player_seats
+    return table_name, limit_size, table_size, hand_start_times[0], hand_start_times[
+        -1], hand_count, player_names, player_seats, blinds_posted
 
 
-print(session_file_reader(SESSIONS_DIR[2]))
+print(session_file_reader(SESSIONS_DIR[0]))
