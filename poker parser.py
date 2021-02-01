@@ -71,7 +71,7 @@ SESSION -> TABLE -> HAND -> PLAYERS for tables
 sql_connection = mysql.connect(
     host="localhost",
     user="root",
-    password="LoTTaB0llyw00d"
+    password="password"
 )
 cursor = sql_connection.cursor(buffered=True)
 
