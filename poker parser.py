@@ -163,11 +163,10 @@ class Session:
         :param file_name:
         """
         self.file = file
-        self.table_name = ""
-        self.date = ""
+        self.table_name = str
+        self.date = str
         self.hands = {}
         self.no_of_hands = int
-        self.times_played = int
         self.results = int
 
     def __str__(self):
@@ -213,35 +212,37 @@ class Session:
 
 
 class Table:
-    def __init__(self, table_name, table_stake, table_size, dates_played, times_played, hands_played, results):
+    def __init__(self, table_name, table_stake, table_size):
         self.table_name = table_name
         self.table_stake = table_stake
         self.table_size = table_size
-        self.dates_played = dates_played
-        self.times_played = times_played
-        self.hands_played = hands_played
-        self.results = results
+        self.dates_played = str
+        self.total_time_played = str
+        self.times_played = int
+        self.hands_played = int
+        self.results = float
 
 
 class Player:
-    def __init__(self, player_name, sessions_played, hands_played, results):
+    def __init__(self, player_name):
         self.player_name = player_name
-        self.sessions_played = sessions_played
-        self.hands_played = hands_played
-        self.results = results
+        self.sessions_played = int
+        self.hands_played = int
+        self.results = float
 
 
 class Hand:
-    def __init__(self, hand_number, players, date, results):
+    def __init__(self, hand_number):
         self.hand_number = hand_number
-        self.players = players
-        self.date = date
-        self.results = results
+        self.players = []
+        self.date = str
+        self.results = float
 
 
 if __name__ == '__main__':
     try:
         cursor.execute(f"USE {HAND_HISTORY_DB_NAME}")
+        print(f"Database: {HAND_HISTORY_DB_NAME}")
     except mysql.Error as err:
         print(f"Database {HAND_HISTORY_DB_NAME} does not exist.")
         if err.errno == errorcode.ER_BAD_DB_ERROR:
@@ -267,14 +268,15 @@ if __name__ == '__main__':
     sql_connection.commit()
     sql_connection.close()
     cursor.close()
+
     dir = HistoryDirectory("PolarFox")
     dir.find_profile_history()
     for file in range(0, len(dir.session_files)):
         session_file = open(dir.session_files[file], 'r')
         file_reader = list(csv.reader(session_file, delimiter="\n"))
         sess = Session(file_reader)
-        print(sess.check_for_table_name())
-        print(sess.check_date())
+        sess.check_for_table_name()
+        sess.check_date()
         # print(f"this is file_reader[0]: {file_reader[0]}")
         counter = 0
         while counter != len(file_reader):
@@ -284,6 +286,4 @@ if __name__ == '__main__':
                 counter += 1
             else:
                 counter += 1
-        print(sess.hands)
-        print(sess.no_of_hands)
-        print(sess.check_time_played())
+        sess.check_time_played()
