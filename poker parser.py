@@ -1,6 +1,6 @@
 # IMPORT
 import csv
-from datetime import datetime
+import datetime
 import mysql.connector as mysql
 from mysql.connector import errorcode
 import os
@@ -71,7 +71,7 @@ SESSION -> TABLE -> HAND -> PLAYERS for tables
 sql_connection = mysql.connect(
     host="localhost",
     user="root",
-    password="password"
+    password="LoTTaB0llyw00d"
 )
 cursor = sql_connection.cursor(buffered=True)
 
@@ -93,13 +93,6 @@ HAND_HISTORY_DB_TABLES['Players'] = (
     "   `Hands Played` int(9)"
     ") ENGINE=InnoDB")
 
-HAND_HISTORY_DIR = r"C:\AmericasCardroom\handHistory\PolarFox\\"
-SESSIONS_DIR = os.listdir(HAND_HISTORY_DIR)
-SESSION_FILES = []
-SESSIONS = {}
-for file in SESSIONS_DIR:
-    SESSION_FILES.append(file)
-
 
 def create_sql_database(cursor, db_name):
     try:
@@ -109,87 +102,188 @@ def create_sql_database(cursor, db_name):
         exit(1)
 
 
-def check_row(file_row, string_check):
-    if string_check in str(file_row):
-        return True
-
-
-def session_file_reader(file):
-    index = 0
-    hand_count = 0
-    player_count = 0
-    hand_start_times = []
-    hand_numbers = []
-    player_names = []
-    player_seats = []
-    blinds_posted = {}
-
-    session_file = open(HAND_HISTORY_DIR + file, 'r')
-    file_reader = list(csv.reader(session_file, delimiter="\n"))
-
-    game_type = str(file_reader[0])[str(file_reader[0]).index("-") + 2:str(file_reader[0]).index("(")]
-    limit_type = str(file_reader[0])[str(file_reader[0]).index("(") + 1:str(file_reader[0]).index(")")]
-    limit_size = str(file_reader[0])[str(file_reader[0]).index("$"):
-                                     str(file_reader[0]).index(" ", str(file_reader[0]).index("$"))]
-
-    table_name = str(file_reader[1])[2:str(file_reader[1]).index(" ")]
-    table_size = str(file_reader[1])[str(file_reader[1]).index(" ") + 1:
-                                     str(file_reader[1]).index(" ", str(file_reader[1]).index(" ") + 1)]
-
-    while index != len(file_reader):
-        if check_row(file_reader[index], "Hand #"):
-            hand_numbers.append(str(file_reader[index])[str(file_reader[index]).index("#") + 1:
-                                                        str(file_reader[index]).index("-") - 1])
-            hand_start_times.append(str(file_reader[index])[str(file_reader[index]).index(":") - 13:
-                                                            str(file_reader[index]).index("U") - 1])
-            hand_count += 1
-        if check_row(file_reader[index], "is the button"):
-            button_position = str(file_reader[index])[str(file_reader[index]).index("#") + 1]
-        if check_row(file_reader[index], "Seat "):
-            if check_row(file_reader[index], "($"):
-                player_names.append(str(file_reader[index])[str(file_reader[index]).index(":") + 2:
-                                                            str(file_reader[index]).index("(") - 1])
-                player_seats.append(str(file_reader[index])[7])
-        if check_row(file_reader[index], "the small blind"):
-            blinds_posted["Small Blind"] = str(file_reader[index])[2:str(file_reader[index]).index(" ")]
-        if check_row(file_reader[index], "the big blind"):
-            blinds_posted["Big Blind"] = str(file_reader[index])[2:str(file_reader[index]).index(" ")]
-        if check_row(file_reader[index], "posts $"):
-            blinds_posted["Extra Blind"] = str(file_reader[index])[2:str(file_reader[index]).index(" ")]
-        if check_row(file_reader[index], "posts dead"):
-            blinds_posted["Dead Blind"] = str(file_reader[index])[2:str(file_reader[index]).index(" ")]
-        index += 1
-    return table_name, limit_size, table_size, hand_start_times[0], hand_start_times[
-        -1], hand_count, player_names, player_seats, blinds_posted
-
-
-try:
-    cursor.execute(f"USE {HAND_HISTORY_DB_NAME}")
-except mysql.Error as err:
-    print(f"Database {HAND_HISTORY_DB_NAME} does not exist.")
-    if err.errno == errorcode.ER_BAD_DB_ERROR:
-        create_sql_database(cursor, HAND_HISTORY_DB_NAME)
-        print(f"Database {HAND_HISTORY_DB_NAME} created successfully.")
-        sql_connection.database = HAND_HISTORY_DB_NAME
-    else:
-        print(err)
-        exit(1)
-
-for table_name in HAND_HISTORY_DB_TABLES:
-    table_description = HAND_HISTORY_DB_TABLES[table_name]
+def insert_into_sql_table(cursor, sql_table, data):
     try:
-        print(f"Creating table: {table_name}")
-        cursor.execute(table_description)
-        print(f"Created table: {table_name} successfully")
+        cursor.execute(f"INSERT INTO {sql_table} ({data}) VALUES (%s)")
     except mysql.Error as err:
-        if err.errno == errorcode.ER_TABLE_EXISTS_ERROR:
-            print(f"Table {table_name} already exists.")
+        print(f"Failed to insert {data} into {sql_table}")
+
+
+class HistoryDirectory:
+    session_files = []
+
+    def __init__(self, user_name):
+        """
+        A set of files that contain hand history data from the user
+        :param user_name: Users ACR playername
+        """
+        self.user_name = user_name
+
+    def find_profile_history(self):
+        """
+        Get file directory of user profile's hand history
+        :return: Append each file to 'session_files'
+        """
+        profile_dir_str = "C:\\AmericasCardroom\\handHistory\\" + str(self.user_name)
+        profile_dir = os.listdir(profile_dir_str)
+        for file in profile_dir:
+            HistoryDirectory.session_files.append((profile_dir_str + "\\" + file))
+
+
+class FileRow:
+    def __init__(self, file):
+        """
+        Get a specific row from a specific file
+        :param file_name: Get file name to use
+        :param row_no: Get row number to use
+        """
+        self.file = file
+
+    def __str__(self):
+        return str(self.__dict__)
+
+    def check_row(self, string_check):
+        if not self.file:
+            pass
+            # print("New hand...")
         else:
-            print(err.msg)
-cursor.execute("SHOW TABLES")
-sql_connection.commit()
-sql_connection.close()
-cursor.close()
+            if string_check in self.file[0]:
+                return True
+        """
+        Check if selected string is in selected row of selected file
+        :param string_check: String to check
+        :return: Boolean
+        """
 
 
-print(session_file_reader(SESSIONS_DIR[0]))
+class Session:
+    def __init__(self, file):
+        """
+        Get session data per file
+        :param file_name:
+        """
+        self.file = file
+        self.table_name = ""
+        self.date = ""
+        self.hands = {}
+        self.no_of_hands = int
+        self.times_played = int
+        self.results = int
+
+    def __str__(self):
+        return str(self.__dict__)
+
+    def check_for_table_name(self):
+        """
+        Check for table name from first hand
+        :return: self.table_name
+        """
+        self.table_name = self.file[1][0][:self.file[1][0].index(" ")]
+        return self.table_name
+
+    def check_date(self):
+        """
+        Check for date of first hand
+        :return: self.date
+        """
+        self.date = self.file[0][0][-21:-13]
+        return self.date
+
+    def check_hands(self, ind):
+        """
+        Get hand number and hand start time, set into dict 'hands'
+        Get number of hands played in session from getting length of self.hands dict
+        :param ind: Current row number
+        :return: self.hands, self.no_of_hands
+        """
+        self.hands[self.file[ind][0][self.file[ind][0].index("#") + 1:self.file[ind][0].index("-") - 1]] =\
+            self.file[ind][0][-12:-4]
+        self.no_of_hands = len(self.hands)
+        return self.hands, self.no_of_hands
+
+    def check_time_played(self):
+        """
+        Get first hand start time and last hand start time, find time difference between the two
+        :return: total_time
+        """
+        time_start = datetime.datetime.strptime(list(self.hands.values())[0], '%H:%M:%S')
+        end_time = datetime.datetime.strptime(list(self.hands.values())[-1], '%H:%M:%S')
+        total_time = end_time - time_start
+        return total_time
+
+
+class Table:
+    def __init__(self, table_name, table_stake, table_size, dates_played, times_played, hands_played, results):
+        self.table_name = table_name
+        self.table_stake = table_stake
+        self.table_size = table_size
+        self.dates_played = dates_played
+        self.times_played = times_played
+        self.hands_played = hands_played
+        self.results = results
+
+
+class Player:
+    def __init__(self, player_name, sessions_played, hands_played, results):
+        self.player_name = player_name
+        self.sessions_played = sessions_played
+        self.hands_played = hands_played
+        self.results = results
+
+
+class Hand:
+    def __init__(self, hand_number, players, date, results):
+        self.hand_number = hand_number
+        self.players = players
+        self.date = date
+        self.results = results
+
+
+if __name__ == '__main__':
+    try:
+        cursor.execute(f"USE {HAND_HISTORY_DB_NAME}")
+    except mysql.Error as err:
+        print(f"Database {HAND_HISTORY_DB_NAME} does not exist.")
+        if err.errno == errorcode.ER_BAD_DB_ERROR:
+            create_sql_database(cursor, HAND_HISTORY_DB_NAME)
+            print(f"Database {HAND_HISTORY_DB_NAME} created successfully.")
+            sql_connection.database = HAND_HISTORY_DB_NAME
+        else:
+            print(err)
+            exit(1)
+
+    for table_name in HAND_HISTORY_DB_TABLES:
+        table_description = HAND_HISTORY_DB_TABLES[table_name]
+        try:
+            print(f"Creating table: {table_name}")
+            cursor.execute(table_description)
+            print(f"Created table: {table_name} successfully")
+        except mysql.Error as err:
+            if err.errno == errorcode.ER_TABLE_EXISTS_ERROR:
+                print(f"Table {table_name} already exists.")
+            else:
+                print(err.msg)
+    cursor.execute("SHOW TABLES")
+    sql_connection.commit()
+    sql_connection.close()
+    cursor.close()
+    dir = HistoryDirectory("PolarFox")
+    dir.find_profile_history()
+    for file in range(0, len(dir.session_files)):
+        session_file = open(dir.session_files[file], 'r')
+        file_reader = list(csv.reader(session_file, delimiter="\n"))
+        sess = Session(file_reader)
+        print(sess.check_for_table_name())
+        print(sess.check_date())
+        # print(f"this is file_reader[0]: {file_reader[0]}")
+        counter = 0
+        while counter != len(file_reader):
+            file = FileRow(file_reader[counter])
+            if file.check_row("Hand #"):
+                sess.check_hands(counter)
+                counter += 1
+            else:
+                counter += 1
+        print(sess.hands)
+        print(sess.no_of_hands)
+        print(sess.check_time_played())
