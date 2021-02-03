@@ -162,8 +162,10 @@ class Session:
         :param file_name:
         """
         self.file = file
-        self.table_name = self.check_for_table_name()
-        self.date = self.check_date()
+        self.table_name = self.check_for_table_name
+        self.table_stake = self.check_for_table_stake
+        self.table_size = self.check_for_table_size
+        self.date = self.check_date
         self.hand_no = str
         self.hand_start = str
         self.hands = {}
@@ -189,7 +191,20 @@ class Session:
         :return: self.table_name
         """
         self.table_name = self.file[1][0][:self.file[1][0].index(" ")]
-        return self.table_name
+
+    def check_for_table_stake(self):
+        """
+        Check for table stake from first hand
+        :return: self.table_stake
+        """
+        self.table_stake = self.file[0][0][self.file[0][0].index("$"):-26]
+
+    def check_for_table_size(self):
+        """
+        Check for table size from first hand
+        :return: self.table_size
+        """
+        self.table_size = self.file[1][0][self.file[1][0].index("-") - 1]
 
     def check_date(self):
         """
@@ -197,7 +212,6 @@ class Session:
         :return: self.date
         """
         self.date = self.file[0][0][-21:-13]
-        return self.date
 
     def check_hands(self, ind):
         """
@@ -211,7 +225,6 @@ class Session:
         self.hands[self.file[ind][0][self.file[ind][0].index("#") + 1:self.file[ind][0].index("-") - 1]] =\
             self.file[ind][0][-12:-4]
         self.no_of_hands = len(self.hands)
-        return self.hand_no, self.hand_start, self.hands, self.no_of_hands
 
     def check_time_played(self):
         """
@@ -221,9 +234,16 @@ class Session:
         time_start = datetime.datetime.strptime(list(self.hands.values())[0], '%H:%M:%S')
         end_time = datetime.datetime.strptime(list(self.hands.values())[-1], '%H:%M:%S')
         total_time = end_time - time_start
-        return total_time
 
     def get_results(self, ind, user):
+        """
+        Check if 'user' is in current line, if so, check for variations such as ' calls ' or ' won '.
+        Gets the total amount wagered (or returned) and then if the hand is lost, returns that amount;
+        if the hand is won, takes away the amount wagered from the pot total to reflect profit.
+        :param ind: current file row
+        :param user: username
+        :return: results of the hand
+        """
         if '($' in self.file[ind][0]:
             if f'returned to {user}' in self.file[ind][0]:
                 self.bet_return = float(self.file[ind][0][self.file[ind][0].index("(") + 2:self.file[ind][0].index(")")])
@@ -244,18 +264,15 @@ class Session:
         elif ' raises ' in self.file[ind][0]:
             self._raise = float(self.file[ind][0][self.file[ind][0].index("$")+1:
                                        self.file[ind][0].index(" ", self.file[ind][0].index("$"))])
-            # print(f"_raise = {self._raise}")
+            print(f"_raise = {self._raise}")
         elif ' folds' in self.file[ind][0]:
             self.result = (self.small + self.big + self.call_bet + self._raise) * -1
             print(f"result = {self.result}")
-            # print(f"loss = {self.loss}")
         elif ' lost ' in self.file[ind][0]:
             self.result = (self.small + self.big + self.call_bet + self._raise) * -1
             print(f"result = {self.result}")
-            # print(f"loss = {self.loss}")
         elif ' won ' in self.file[ind][0]:
             self.won = float(self.file[ind][0][self.file[ind][0].index("$") + 1:self.file[ind][0].index(".") + 3])
-            # print(f"won = {self.won}")
             self.actions = float(
                 self.small) + float(self.big) + float(self.call_bet) + float(self._raise) - float(self.bet_return)
             print(f"actions = {round(self.actions, 2)}")
@@ -339,23 +356,27 @@ if __name__ == '__main__':
         file_reader = list(csv.reader(session_file, delimiter="\n"))
         sess = Session(file_reader)
         sess.check_for_table_name()
+        sess.check_for_table_stake()
+        sess.check_for_table_size()
         sess.check_date()
+        tabl = Table(sess.table_name, sess.table_stake, sess.table_size)
+        print(f"tabl = {tabl}")
         # print(f"this is file_reader[0]: {file_reader[0]}")
         counter = 0
         while counter != len(file_reader):
             file = FileRow(file_reader[counter])
             if file.check_row("Hand #"):
+
                 sess.new_hand()
                 sess.check_hands(counter)
                 print(sess.table_name)
+                print(sess.table_stake)
+                print(sess.table_size)
                 print(sess.date)
                 print(sess.hand_no)
                 print(sess.hand_start)
                 counter += 1
             elif file.check_row(str(dir.user_name)):
-                sess.get_results(counter, dir.user_name)
-                counter += 1
-            elif file.check_row(" Rake "):
                 sess.get_results(counter, dir.user_name)
                 counter += 1
             else:
