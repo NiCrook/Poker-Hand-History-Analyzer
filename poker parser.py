@@ -64,8 +64,7 @@ Seat 6: IveysAFraud folded on the Pre-Flop and did not bet
 """
 
 """
-Design function that returns the csv document or to store it as a variable?
-SESSION -> TABLE -> HAND -> PLAYERS for tables
+SESSION - TABLE - HAND - PLAYERS for tables
 """
 
 sql_connection = mysql.connect(
@@ -163,11 +162,23 @@ class Session:
         :param file_name:
         """
         self.file = file
-        self.table_name = str
-        self.date = str
+        self.table_name = self.check_for_table_name()
+        self.date = self.check_date()
+        self.hand_no = str
+        self.hand_start = str
         self.hands = {}
         self.no_of_hands = int
-        self.results = int
+        self.hand_results = []
+
+        self.small = 0
+        self.big = 0
+        self.call_bet = 0
+        self.bet_return = 0
+        self._raise = 0 - self.bet_return
+        self.won = 0
+        self.actions = 0
+        self.result = 0
+        # self.session_results = self.hand_results[-1] - self.hand_results[0]
 
     def __str__(self):
         return str(self.__dict__)
@@ -195,10 +206,12 @@ class Session:
         :param ind: Current row number
         :return: self.hands, self.no_of_hands
         """
+        self.hand_no = self.file[ind][0][self.file[ind][0].index("#") + 1:self.file[ind][0].index("-") - 1]
+        self.hand_start = self.file[ind][0][-12:-4]
         self.hands[self.file[ind][0][self.file[ind][0].index("#") + 1:self.file[ind][0].index("-") - 1]] =\
             self.file[ind][0][-12:-4]
         self.no_of_hands = len(self.hands)
-        return self.hands, self.no_of_hands
+        return self.hand_no, self.hand_start, self.hands, self.no_of_hands
 
     def check_time_played(self):
         """
@@ -209,6 +222,56 @@ class Session:
         end_time = datetime.datetime.strptime(list(self.hands.values())[-1], '%H:%M:%S')
         total_time = end_time - time_start
         return total_time
+
+    def get_results(self, ind, user):
+        if '($' in self.file[ind][0]:
+            if f'returned to {user}' in self.file[ind][0]:
+                self.bet_return = float(self.file[ind][0][self.file[ind][0].index("(") + 2:self.file[ind][0].index(")")])
+                print(f"bet_return = {self.bet_return}")
+        elif ' small blind ' in self.file[ind][0]:
+            self.small = float(self.file[ind][0][self.file[ind][0].index("$") + 1:])
+            print(f"small = {self.small}")
+        elif ' big blind ' in self.file[ind][0]:
+            self.big = float(self.file[ind][0][self.file[ind][0].index("$") + 1:])
+            print(f"big = {self.big}")
+        elif ' calls ' in self.file[ind][0]:
+            self.call_bet += float(self.file[ind][0][self.file[ind][0].index("$") + 1:
+                                                self.file[ind][0].index(".") + 3])
+            print(f"call_bet = {self.call_bet}")
+        elif ' bets ' in self.file[ind][0]:
+            self.call_bet += float(self.file[ind][0][self.file[ind][0].index("$") + 1:self.file[ind][0].index(".") + 3])
+            print(f"call_bet = {self.call_bet}")
+        elif ' raises ' in self.file[ind][0]:
+            self._raise = float(self.file[ind][0][self.file[ind][0].index("$")+1:
+                                       self.file[ind][0].index(" ", self.file[ind][0].index("$"))])
+            # print(f"_raise = {self._raise}")
+        elif ' folds' in self.file[ind][0]:
+            self.result = (self.small + self.big + self.call_bet + self._raise) * -1
+            print(f"result = {self.result}")
+            # print(f"loss = {self.loss}")
+        elif ' lost ' in self.file[ind][0]:
+            self.result = (self.small + self.big + self.call_bet + self._raise) * -1
+            print(f"result = {self.result}")
+            # print(f"loss = {self.loss}")
+        elif ' won ' in self.file[ind][0]:
+            self.won = float(self.file[ind][0][self.file[ind][0].index("$") + 1:self.file[ind][0].index(".") + 3])
+            # print(f"won = {self.won}")
+            self.actions = float(
+                self.small) + float(self.big) + float(self.call_bet) + float(self._raise) - float(self.bet_return)
+            print(f"actions = {round(self.actions, 2)}")
+            self.result = round(self.won, 2) - round(self.actions, 2)
+            print(f"result = {self.result}")
+
+    def new_hand(self):
+        self.small = 0
+        self.big = 0
+        self.call_bet = 0
+        self.bet_return = 0
+        self._raise = 0 - self.bet_return
+        self.won = 0
+        self.actions = 0
+        self.result = 0
+        print("\n\nNew hand...")
 
 
 class Table:
@@ -282,7 +345,18 @@ if __name__ == '__main__':
         while counter != len(file_reader):
             file = FileRow(file_reader[counter])
             if file.check_row("Hand #"):
+                sess.new_hand()
                 sess.check_hands(counter)
+                print(sess.table_name)
+                print(sess.date)
+                print(sess.hand_no)
+                print(sess.hand_start)
+                counter += 1
+            elif file.check_row(str(dir.user_name)):
+                sess.get_results(counter, dir.user_name)
+                counter += 1
+            elif file.check_row(" Rake "):
+                sess.get_results(counter, dir.user_name)
                 counter += 1
             else:
                 counter += 1
