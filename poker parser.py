@@ -278,6 +278,7 @@ class Session:
             print(f"actions = {round(self.actions, 2)}")
             self.result = round(self.won, 2) - round(self.actions, 2)
             print(f"result = {self.result}")
+        self.hand_results.append(self.result)
 
     def new_hand(self):
         self.small = 0
@@ -366,7 +367,6 @@ if __name__ == '__main__':
         while counter != len(file_reader):
             file = FileRow(file_reader[counter])
             if file.check_row("Hand #"):
-
                 sess.new_hand()
                 sess.check_hands(counter)
                 print(sess.table_name)
@@ -381,4 +381,5 @@ if __name__ == '__main__':
                 counter += 1
             else:
                 counter += 1
+        print(f"total result: {sum(sess.hand_results)}")
         sess.check_time_played()
