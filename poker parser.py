@@ -158,7 +158,6 @@ class FileRow:
     def check_row(self, string_check):
         if not self.file:
             pass
-            # print("New hand...")
         else:
             if string_check in self.file[0]:
                 return True
@@ -300,7 +299,7 @@ class Session:
         self.won = 0
         self.actions = 0
         self.result = 0
-        print("\n\nNew hand...")
+        # print("\n\nNew hand...")
 
     def insert_session_data(self):
         try:
@@ -462,7 +461,7 @@ if __name__ == '__main__':
             elif file.check_row(str(dir.user_name)):
                 sess.get_results(counter, dir.user_name)
                 counter += 1
-            elif file.check_row(""):
+            elif not file_reader[counter]:
                 hand = Hand(sess.hand_no, sess.date, sess.result)
                 hand.insert_hand_data()
                 counter += 1
