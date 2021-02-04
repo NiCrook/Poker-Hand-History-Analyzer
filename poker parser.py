@@ -1,6 +1,7 @@
 # IMPORT
 import csv
 import datetime
+from getpass import getpass
 import mysql.connector as mysql
 from mysql.connector import errorcode
 import os
@@ -74,22 +75,35 @@ sql_connection = mysql.connect(
 )
 cursor = sql_connection.cursor(buffered=True)
 
-HAND_HISTORY_DB_NAME = 'Hand_History'
+HAND_HISTORY_DB_NAME = 'HandHistory'
 HAND_HISTORY_DB_TABLES = {}
+HAND_HISTORY_DB_TABLES['Sessions'] = (
+    "CREATE TABLE `Sessions` ("
+    "   `SessionTable` varchar(36),"
+    "   `SessionDate` date NOT NULL,"
+    "   `SessionTime` time NOT NULL,"
+    "   `SessionHands` int(6),"
+    "   `SessionResults` float(16)"
+    ")  ENGINE=InnoDB")
 HAND_HISTORY_DB_TABLES['Tables'] = (
-    "CREATE TABLE `Tables` ("
-    "   `Table Name` varchar(36),"
-    "   `Table Date` date NOT NULL"
+    "CREATE TABLE `PokerTables` ("
+    "   `TableName` varchar(36),"
+    "   `TableStake` varchar(16),"
+    "   `TableSize` int(1),"
+    "   `TableDate` date NOT NULL"
     ") ENGINE=InnoDB")
 HAND_HISTORY_DB_TABLES['Hands'] = (
     "CREATE TABLE `Hands` ("
-    "   `Hand Number` int(9),"
-    "   `Hand Date` date NOT NULL"
+    "   `HandNumber` int(9),"
+    "   `HandDate` date NOT NULL,"
+    "   `HandResults` float(16)"
     ") ENGINE=InnoDB")
 HAND_HISTORY_DB_TABLES['Players'] = (
     "CREATE TABLE `Players` ("
-    "   `Player` varchar(16),"
-    "   `Hands Played` int(9)"
+    "   `PlayerName` varchar(16)"
+    # "   `PlayerSessions` int(6),"
+    # "   `PlayerHands` int(9),"
+    # "   `PlayerResults` float(16)"
     ") ENGINE=InnoDB")
 
 
@@ -134,7 +148,7 @@ class FileRow:
         """
         Get a specific row from a specific file
         :param file_name: Get file name to use
-        :param row_no: Get row number to use
+        :return: Boolean
         """
         self.file = file
 
@@ -148,11 +162,6 @@ class FileRow:
         else:
             if string_check in self.file[0]:
                 return True
-        """
-        Check if selected string is in selected row of selected file
-        :param string_check: String to check
-        :return: Boolean
-        """
 
 
 class Session:
@@ -166,6 +175,7 @@ class Session:
         self.table_stake = self.check_for_table_stake
         self.table_size = self.check_for_table_size
         self.date = self.check_date
+        self.session_time = self.check_time_played
         self.hand_no = str
         self.hand_start = str
         self.hands = {}
@@ -222,18 +232,18 @@ class Session:
         """
         self.hand_no = self.file[ind][0][self.file[ind][0].index("#") + 1:self.file[ind][0].index("-") - 1]
         self.hand_start = self.file[ind][0][-12:-4]
-        self.hands[self.file[ind][0][self.file[ind][0].index("#") + 1:self.file[ind][0].index("-") - 1]] =\
+        self.hands[self.file[ind][0][self.file[ind][0].index("#") + 1:self.file[ind][0].index("-") - 1]] = \
             self.file[ind][0][-12:-4]
         self.no_of_hands = len(self.hands)
 
     def check_time_played(self):
         """
         Get first hand start time and last hand start time, find time difference between the two
-        :return: total_time
+        :return: session_time
         """
         time_start = datetime.datetime.strptime(list(self.hands.values())[0], '%H:%M:%S')
         end_time = datetime.datetime.strptime(list(self.hands.values())[-1], '%H:%M:%S')
-        total_time = end_time - time_start
+        self.session_time = end_time - time_start
 
     def get_results(self, ind, user):
         """
@@ -246,7 +256,8 @@ class Session:
         """
         if '($' in self.file[ind][0]:
             if f'returned to {user}' in self.file[ind][0]:
-                self.bet_return = float(self.file[ind][0][self.file[ind][0].index("(") + 2:self.file[ind][0].index(")")])
+                self.bet_return = float(
+                    self.file[ind][0][self.file[ind][0].index("(") + 2:self.file[ind][0].index(")")])
                 print(f"bet_return = {self.bet_return}")
         elif ' small blind ' in self.file[ind][0]:
             self.small = float(self.file[ind][0][self.file[ind][0].index("$") + 1:])
@@ -256,14 +267,14 @@ class Session:
             print(f"big = {self.big}")
         elif ' calls ' in self.file[ind][0]:
             self.call_bet += float(self.file[ind][0][self.file[ind][0].index("$") + 1:
-                                                self.file[ind][0].index(".") + 3])
+                                                     self.file[ind][0].index(".") + 3])
             print(f"call_bet = {self.call_bet}")
         elif ' bets ' in self.file[ind][0]:
             self.call_bet += float(self.file[ind][0][self.file[ind][0].index("$") + 1:self.file[ind][0].index(".") + 3])
             print(f"call_bet = {self.call_bet}")
         elif ' raises ' in self.file[ind][0]:
-            self._raise = float(self.file[ind][0][self.file[ind][0].index("$")+1:
-                                       self.file[ind][0].index(" ", self.file[ind][0].index("$"))])
+            self._raise = float(self.file[ind][0][self.file[ind][0].index("$") + 1:
+                                                  self.file[ind][0].index(" ", self.file[ind][0].index("$"))])
             print(f"_raise = {self._raise}")
         elif ' folds' in self.file[ind][0]:
             self.result = (self.small + self.big + self.call_bet + self._raise) * -1
@@ -291,17 +302,52 @@ class Session:
         self.result = 0
         print("\n\nNew hand...")
 
+    def insert_session_data(self):
+        try:
+            session_insert = "INSERT INTO Sessions " \
+                             "SELECT %s, %s, %s, %s, %s " \
+                             "WHERE NOT EXISTS " \
+                             "(SELECT SessionTable, SessionDate, SessionTime, SessionHands, SessionResults " \
+                             "FROM Sessions " \
+                             "WHERE SessionTable = %s AND SessionDate = %s AND SessionTime = %s AND SessionHands = %s " \
+                             "AND SessionResults = %s)"
+            cursor.execute(session_insert, (
+                self.table_name, self.date, self.session_time, self.no_of_hands, sum(self.hand_results),
+                self.table_name, self.date, self.session_time, self.no_of_hands, sum(self.hand_results)))
+            sql_connection.commit()
+            print("Session Data inserted successfully")
+        except errorcode as err:
+            print(f"Error: {err}")
+
 
 class Table:
-    def __init__(self, table_name, table_stake, table_size):
+    def __init__(self, table_name, table_stake, table_size, table_date):
         self.table_name = table_name
         self.table_stake = table_stake
         self.table_size = table_size
-        self.dates_played = str
+        self.table_date = table_date
         self.total_time_played = str
         self.times_played = int
         self.hands_played = int
         self.results = float
+
+    def __str__(self):
+        return str(self.__dict__)
+
+    def insert_table_data(self):
+        try:
+            table_insert = "INSERT INTO PokerTables " \
+                           "SELECT %s, %s, %s, %s " \
+                           "WHERE NOT EXISTS " \
+                           "(SELECT TableName, TableStake, TableSize, TableDate " \
+                           "FROM PokerTables " \
+                           "WHERE TableName = %s AND TableStake = %s AND TableSize = %s AND TableDate = %s)"
+            cursor.execute(table_insert, (self.table_name, self.table_stake, self.table_size, self.table_date,
+                                          self.table_name, self.table_stake, self.table_size, self.table_date))
+            sql_connection.commit()
+            print("Table Data inserted successfully")
+        except errorcode as err:
+            print(f"Error: {err}")
 
 
 class Player:
@@ -311,13 +357,45 @@ class Player:
         self.hands_played = int
         self.results = float
 
+    def __str__(self):
+        return str(self.__dict__)
+
+    def insert_player_data(self):
+        try:
+            player_insert = "INSERT INTO Players " \
+                            "SELECT %s " \
+                            "WHERE NOT EXISTS " \
+                            "(SELECT PlayerName FROM Players " \
+                            "WHERE PlayerName = %s)"
+            cursor.execute(player_insert, (self.player_name, self.player_name))
+            sql_connection.commit()
+            print("Player Data inserted succesfully")
+        except errorcode as err:
+            print(f"Error: {err}")
+
 
 class Hand:
-    def __init__(self, hand_number):
+    def __init__(self, hand_number, date, result):
         self.hand_number = hand_number
-        self.players = []
-        self.date = str
-        self.results = float
+        self.date = date
+        self.result = result
+
+    def __str__(self):
+        return str(self.__dict__)
+
+    def insert_hand_data(self):
+        try:
+            hand_insert = "INSERT INTO Hands " \
+                          "SELECT %s, %s, %s " \
+                          "WHERE NOT EXISTS " \
+                          "(SELECT HandNumber, HandDate, HandResults FROM Hands " \
+                          "WHERE HandNumber = %s AND HandDate = %s AND HandResults = %s)"
+            cursor.execute(hand_insert, (self.hand_number, self.date, self.result,
+                                         self.hand_number, self.date, self.result))
+            sql_connection.commit()
+            print("Hand Date Inserted Succesfully")
+        except errorcode as err:
+            print(f"Error: {err}")
 
 
 if __name__ == '__main__':
@@ -347,22 +425,27 @@ if __name__ == '__main__':
                 print(err.msg)
     cursor.execute("SHOW TABLES")
     sql_connection.commit()
-    sql_connection.close()
-    cursor.close()
+    # sql_connection.close()
+    # cursor.close()
 
     dir = HistoryDirectory("PolarFox")
     dir.find_profile_history()
     for file in range(0, len(dir.session_files)):
         session_file = open(dir.session_files[file], 'r')
         file_reader = list(csv.reader(session_file, delimiter="\n"))
+
         sess = Session(file_reader)
         sess.check_for_table_name()
         sess.check_for_table_stake()
         sess.check_for_table_size()
         sess.check_date()
-        tabl = Table(sess.table_name, sess.table_stake, sess.table_size)
-        print(f"tabl = {tabl}")
-        # print(f"this is file_reader[0]: {file_reader[0]}")
+
+        tabl = Table(sess.table_name, sess.table_stake, sess.table_size, sess.date)
+        plyr = Player(dir.user_name)
+
+        tabl.insert_table_data()
+        plyr.insert_player_data()
+
         counter = 0
         while counter != len(file_reader):
             file = FileRow(file_reader[counter])
@@ -379,7 +462,15 @@ if __name__ == '__main__':
             elif file.check_row(str(dir.user_name)):
                 sess.get_results(counter, dir.user_name)
                 counter += 1
-            else:
+            elif file.check_row(""):
+                hand = Hand(sess.hand_no, sess.date, sess.result)
+                hand.insert_hand_data()
                 counter += 1
+            else:
+                print(file)
+                counter += 1
+
         print(f"total result: {sum(sess.hand_results)}")
         sess.check_time_played()
+        sess.insert_session_data()
+        print(f"time played: {sess.session_time}")
