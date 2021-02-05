@@ -6,68 +6,7 @@ import mysql.connector as mysql
 from mysql.connector import errorcode
 import os
 
-"""
-EXAMPLE HAND:"
-
-Hand #576909116 - Omaha(No Limit) - $0.01/$0.02 - 2020/11/06 21:14:59 UTC
-Powhattan 6-max Seat #1 is the button
-Seat 1: PolarFox ($2.11)
-Seat 2: Kattitude ($2.16)
-Seat 3: ragu_sauce ($1.77)
-Seat 4: FlopSavvy ($0.56)
-Seat 6: IveysAFraud ($4.04)
-Kattitude posts the small blind $0.01
-ragu_sauce posts the big blind $0.02
-*** HOLE CARDS ***
-Dealt to PolarFox [Qh 3c Kd Ad]
-FlopSavvy folds
-IveysAFraud folds
-PolarFox raises $0.07 to $0.07
-Kattitude calls $0.06
-ragu_sauce calls $0.05
-*** FLOP *** [Kh 8c 6d]
-Main pot $0.20 | Rake $0.01
-Kattitude checks
-ragu_sauce checks
-PolarFox bets $0.12
-Kattitude calls $0.12
-ragu_sauce calls $0.12
-*** TURN *** [Kh 8c 6d] [As]
-Main pot $0.55 | Rake $0.02
-Kattitude checks
-ragu_sauce checks
-PolarFox bets $0.19
-Kattitude raises $1.97 to $1.97 and is all-in
-ragu_sauce calls $1.58 and is all-in
-PolarFox calls $1.73 and is all-in
-Uncalled bet ($0.05) returned to Kattitude
-*** RIVER *** [Kh 8c 6d As] [4h]
-Main pot $5.05 | Rake $0.26
-Side pot(1) $0.65 | Rake $0.03
-*** SHOW DOWN ***
-Main pot $5.05 | Rake $0.26
-Side pot(1) $0.65 | Rake $0.03
-PolarFox shows [Qh 3c Kd Ad] (two pair, Aces and Kings [As Ad Kh Kd 8c])
-Kattitude shows [Tc Jc Ac Qc] (a pair of Aces [As Ac Kh Qc 8c])
-ragu_sauce shows [2c 6h 6s 7c] (three of a kind, Set of Sixs [6s 6h 6d As Kh])
-ragu_sauce collected $5.05 from main pot
-PolarFox collected $0.65 from side pot-1
-*** SUMMARY ***
-Total pot $5.70 | Rake $0.21 | JP Fee $0.08
-Board [Kh 8c 6d As 4h]
-Seat 1: PolarFox (button) showed [Qh 3c Kd Ad] and won $0.65 with two pair, Aces and Kings [As Ad Kh Kd 8c]
-Seat 2: Kattitude (small blind) showed [Tc Jc Ac Qc] and lost with a pair of Aces [As Ac Kh Qc 8c]
-Seat 3: ragu_sauce (big blind) showed [2c 6h 6s 7c] and won $5.05 with three of a kind, Set of Sixes [6s 6h 6d As Kh]
-Seat 4: FlopSavvy folded on the Pre-Flop and did not bet
-Seat 6: IveysAFraud folded on the Pre-Flop and did not bet
-
-"
-"""
-
-"""
-SESSION - TABLE - HAND - PLAYERS for tables
-"""
-
+# ESTABLISH SQL CONNECTION
 sql_connection = mysql.connect(
     host="localhost",
     user="root",
@@ -75,6 +14,7 @@ sql_connection = mysql.connect(
 )
 cursor = sql_connection.cursor(buffered=True)
 
+# ESTABLISH SQL DATABASE/TABLES
 HAND_HISTORY_DB_NAME = 'HandHistory'
 HAND_HISTORY_DB_TABLES = {}
 HAND_HISTORY_DB_TABLES['Sessions'] = (
@@ -82,44 +22,45 @@ HAND_HISTORY_DB_TABLES['Sessions'] = (
     "   `SessionTable` varchar(36),"
     "   `SessionDate` date NOT NULL,"
     "   `SessionTime` time NOT NULL,"
-    "   `SessionHands` int(6),"
-    "   `SessionResults` float(16)"
+    "   `SessionHands` int,"
+    "   `SessionResults` float,"
+    "   CONSTRAINT `SessionID` PRIMARY KEY (SessionTable, SessionDate, SessionTime, SessionHands, SessionResults)"
     ")  ENGINE=InnoDB")
 HAND_HISTORY_DB_TABLES['Tables'] = (
     "CREATE TABLE `PokerTables` ("
     "   `TableName` varchar(36),"
     "   `TableStake` varchar(16),"
-    "   `TableSize` int(1),"
+    "   `TableSize` int,"
     "   `TableDate` date NOT NULL"
     ") ENGINE=InnoDB")
 HAND_HISTORY_DB_TABLES['Hands'] = (
     "CREATE TABLE `Hands` ("
-    "   `HandNumber` int(9),"
+    "   `HandNumber` int,"
     "   `HandDate` date NOT NULL,"
-    "   `HandResults` float(16)"
+    "   `HandResults` float,"
+    "   PRIMARY KEY (HandNumber)"
     ") ENGINE=InnoDB")
 HAND_HISTORY_DB_TABLES['Players'] = (
     "CREATE TABLE `Players` ("
     "   `PlayerName` varchar(16)"
-    # "   `PlayerSessions` int(6),"
-    # "   `PlayerHands` int(9),"
-    # "   `PlayerResults` float(16)"
+    # "   `PlayerSessions` int,"
+    # "   `PlayerHands` int,"
+    # "   `PlayerResults` float"
     ") ENGINE=InnoDB")
 
 
 def create_sql_database(cursor, db_name):
+    """
+    Create target SQL database
+    :param cursor:
+    :param db_name: target database name
+    :return: database creation
+    """
     try:
         cursor.execute(f"CREATE DATABASE {db_name} DEFAULT CHARACTER SET 'utf8'")
     except mysql.Error as err:
         print(f"Failed to create database: {err}\n")
         exit(1)
-
-
-def insert_into_sql_table(cursor, sql_table, data):
-    try:
-        cursor.execute(f"INSERT INTO {sql_table} ({data}) VALUES (%s)")
-    except mysql.Error as err:
-        print(f"Failed to insert {data} into {sql_table}")
 
 
 class HistoryDirectory:
@@ -148,7 +89,7 @@ class FileRow:
         """
         Get a specific row from a specific file
         :param file_name: Get file name to use
-        :return: Boolean
+        :return: True if string_check is found
         """
         self.file = file
 
@@ -156,6 +97,11 @@ class FileRow:
         return str(self.__dict__)
 
     def check_row(self, string_check):
+        """
+        Check current row for string_check presence
+        :param string_check: target string to check
+        :return: True if string_check is found
+        """
         if not self.file:
             pass
         else:
@@ -257,40 +203,34 @@ class Session:
             if f'returned to {user}' in self.file[ind][0]:
                 self.bet_return = float(
                     self.file[ind][0][self.file[ind][0].index("(") + 2:self.file[ind][0].index(")")])
-                print(f"bet_return = {self.bet_return}")
         elif ' small blind ' in self.file[ind][0]:
             self.small = float(self.file[ind][0][self.file[ind][0].index("$") + 1:])
-            print(f"small = {self.small}")
         elif ' big blind ' in self.file[ind][0]:
             self.big = float(self.file[ind][0][self.file[ind][0].index("$") + 1:])
-            print(f"big = {self.big}")
         elif ' calls ' in self.file[ind][0]:
             self.call_bet += float(self.file[ind][0][self.file[ind][0].index("$") + 1:
                                                      self.file[ind][0].index(".") + 3])
-            print(f"call_bet = {self.call_bet}")
         elif ' bets ' in self.file[ind][0]:
             self.call_bet += float(self.file[ind][0][self.file[ind][0].index("$") + 1:self.file[ind][0].index(".") + 3])
-            print(f"call_bet = {self.call_bet}")
         elif ' raises ' in self.file[ind][0]:
             self._raise = float(self.file[ind][0][self.file[ind][0].index("$") + 1:
                                                   self.file[ind][0].index(" ", self.file[ind][0].index("$"))])
-            print(f"_raise = {self._raise}")
         elif ' folds' in self.file[ind][0]:
             self.result = (self.small + self.big + self.call_bet + self._raise) * -1
-            print(f"result = {self.result}")
         elif ' lost ' in self.file[ind][0]:
             self.result = (self.small + self.big + self.call_bet + self._raise) * -1
-            print(f"result = {self.result}")
         elif ' won ' in self.file[ind][0]:
             self.won = float(self.file[ind][0][self.file[ind][0].index("$") + 1:self.file[ind][0].index(".") + 3])
             self.actions = float(
                 self.small) + float(self.big) + float(self.call_bet) + float(self._raise) - float(self.bet_return)
-            print(f"actions = {round(self.actions, 2)}")
             self.result = round(self.won, 2) - round(self.actions, 2)
-            print(f"result = {self.result}")
         self.hand_results.append(self.result)
 
     def new_hand(self):
+        """
+        Reset all hand-related variables to 0
+        :return:
+        """
         self.small = 0
         self.big = 0
         self.call_bet = 0
@@ -299,9 +239,12 @@ class Session:
         self.won = 0
         self.actions = 0
         self.result = 0
-        # print("\n\nNew hand...")
 
     def insert_session_data(self):
+        """
+        Insert Session data - table name, session date, time of session, number of hands played in session, and results
+        :return: Insert data into table Sessions
+        """
         try:
             session_insert = "INSERT INTO Sessions " \
                              "SELECT %s, %s, %s, %s, %s " \
@@ -315,12 +258,19 @@ class Session:
                 self.table_name, self.date, self.session_time, self.no_of_hands, sum(self.hand_results)))
             sql_connection.commit()
             print("Session Data inserted successfully")
-        except errorcode as err:
+        except mysql.IntegrityError as err:
             print(f"Error: {err}")
 
 
 class Table:
     def __init__(self, table_name, table_stake, table_size, table_date):
+        """
+        Establish Table data
+        :param table_name:
+        :param table_stake:
+        :param table_size:
+        :param table_date:
+        """
         self.table_name = table_name
         self.table_stake = table_stake
         self.table_size = table_size
@@ -334,6 +284,10 @@ class Table:
         return str(self.__dict__)
 
     def insert_table_data(self):
+        """
+        Insert Table data - table name, table stake, table size, and date played on table
+        :return:
+        """
         try:
             table_insert = "INSERT INTO PokerTables " \
                            "SELECT %s, %s, %s, %s " \
@@ -351,6 +305,10 @@ class Table:
 
 class Player:
     def __init__(self, player_name):
+        """
+        Establish player data
+        :param player_name:
+        """
         self.player_name = player_name
         self.sessions_played = int
         self.hands_played = int
@@ -360,11 +318,16 @@ class Player:
         return str(self.__dict__)
 
     def insert_player_data(self):
+        """
+        Insert Player data - player name
+        :return:
+        """
         try:
             player_insert = "INSERT INTO Players " \
                             "SELECT %s " \
                             "WHERE NOT EXISTS " \
-                            "(SELECT PlayerName FROM Players " \
+                            "(SELECT PlayerName " \
+                            "FROM Players " \
                             "WHERE PlayerName = %s)"
             cursor.execute(player_insert, (self.player_name, self.player_name))
             sql_connection.commit()
@@ -375,6 +338,12 @@ class Player:
 
 class Hand:
     def __init__(self, hand_number, date, result):
+        """
+        Establish Hand data
+        :param hand_number:
+        :param date:
+        :param result:
+        """
         self.hand_number = hand_number
         self.date = date
         self.result = result
@@ -383,17 +352,22 @@ class Hand:
         return str(self.__dict__)
 
     def insert_hand_data(self):
+        """
+        Insert Hand data - hand number, date of hand played, result
+        :return:
+        """
         try:
             hand_insert = "INSERT INTO Hands " \
                           "SELECT %s, %s, %s " \
                           "WHERE NOT EXISTS " \
-                          "(SELECT HandNumber, HandDate, HandResults FROM Hands " \
+                          "(SELECT HandNumber, HandDate, HandResults " \
+                          "FROM Hands " \
                           "WHERE HandNumber = %s AND HandDate = %s AND HandResults = %s)"
             cursor.execute(hand_insert, (self.hand_number, self.date, self.result,
                                          self.hand_number, self.date, self.result))
             sql_connection.commit()
             print("Hand Date Inserted Succesfully")
-        except errorcode as err:
+        except mysql.IntegrityError as err:
             print(f"Error: {err}")
 
 
@@ -424,8 +398,6 @@ if __name__ == '__main__':
                 print(err.msg)
     cursor.execute("SHOW TABLES")
     sql_connection.commit()
-    # sql_connection.close()
-    # cursor.close()
 
     dir = HistoryDirectory("PolarFox")
     dir.find_profile_history()
@@ -451,12 +423,6 @@ if __name__ == '__main__':
             if file.check_row("Hand #"):
                 sess.new_hand()
                 sess.check_hands(counter)
-                print(sess.table_name)
-                print(sess.table_stake)
-                print(sess.table_size)
-                print(sess.date)
-                print(sess.hand_no)
-                print(sess.hand_start)
                 counter += 1
             elif file.check_row(str(dir.user_name)):
                 sess.get_results(counter, dir.user_name)
@@ -466,10 +432,7 @@ if __name__ == '__main__':
                 hand.insert_hand_data()
                 counter += 1
             else:
-                print(file)
                 counter += 1
 
-        print(f"total result: {sum(sess.hand_results)}")
         sess.check_time_played()
         sess.insert_session_data()
-        print(f"time played: {sess.session_time}")
