@@ -2,8 +2,10 @@
 import csv
 import datetime
 from getpass import getpass
+import matplotlib as plt
 import mysql.connector as mysql
 from mysql.connector import errorcode
+import numpy as np
 import os
 
 # ESTABLISH SQL CONNECTION
@@ -19,33 +21,37 @@ HAND_HISTORY_DB_NAME = 'HandHistory'
 HAND_HISTORY_DB_TABLES = {}
 HAND_HISTORY_DB_TABLES['Sessions'] = (
     "CREATE TABLE `Sessions` ("
+    "   `SessionID` int NOT NULL AUTO_INCREMENT PRIMARY KEY,"
     "   `SessionTable` varchar(36),"
     "   `SessionDate` date NOT NULL,"
     "   `SessionTime` time NOT NULL,"
     "   `SessionHands` int,"
     "   `SessionResults` float,"
-    "   CONSTRAINT `SessionID` PRIMARY KEY (SessionTable, SessionDate, SessionTime, SessionHands, SessionResults)"
+    "   CONSTRAINT `SessionUnique` UNIQUE (SessionTable, SessionDate, SessionTime, SessionHands, SessionResults)"
+    # "   PRIMARY KEY (SessionID)"
     ")  ENGINE=InnoDB")
 HAND_HISTORY_DB_TABLES['Tables'] = (
     "CREATE TABLE `PokerTables` ("
-    "   `TableName` varchar(36),"
+    "   `TableName` varchar(36) PRIMARY KEY,"
     "   `TableStake` varchar(16),"
     "   `TableSize` int,"
     "   `TableDate` date NOT NULL"
+    # "   PRIMARY KEY (TableName)"
     ") ENGINE=InnoDB")
 HAND_HISTORY_DB_TABLES['Hands'] = (
     "CREATE TABLE `Hands` ("
-    "   `HandNumber` int,"
+    "   `HandID` int NOT NULL AUTO_INCREMENT PRIMARY KEY,"
+    "   `HandNumber` int UNIQUE,"
     "   `HandDate` date NOT NULL,"
-    "   `HandResults` float,"
-    "   PRIMARY KEY (HandNumber)"
+    "   `HandResults` float"
     ") ENGINE=InnoDB")
 HAND_HISTORY_DB_TABLES['Players'] = (
     "CREATE TABLE `Players` ("
-    "   `PlayerName` varchar(16)"
+    "   `PlayerName` varchar(16) PRIMARY KEY"
     # "   `PlayerSessions` int,"
     # "   `PlayerHands` int,"
-    # "   `PlayerResults` float"
+    # "   `PlayerResults` float,"
+    # "   PRIMARY KEY (PlayerName)"
     ") ENGINE=InnoDB")
 
 
@@ -246,15 +252,10 @@ class Session:
         :return: Insert data into table Sessions
         """
         try:
-            session_insert = "INSERT INTO Sessions " \
-                             "SELECT %s, %s, %s, %s, %s " \
-                             "WHERE NOT EXISTS " \
-                             "(SELECT SessionTable, SessionDate, SessionTime, SessionHands, SessionResults " \
-                             "FROM Sessions " \
-                             "WHERE SessionTable = %s AND SessionDate = %s AND SessionTime = %s AND SessionHands = %s " \
-                             "AND SessionResults = %s)"
+            session_insert = "INSERT INTO Sessions (SessionTable, SessionDate, SessionTime, SessionHands, " \
+                             "SessionResults) " \
+                             "VALUES (%s, %s, %s, %s, %s)"
             cursor.execute(session_insert, (
-                self.table_name, self.date, self.session_time, self.no_of_hands, sum(self.hand_results),
                 self.table_name, self.date, self.session_time, self.no_of_hands, sum(self.hand_results)))
             sql_connection.commit()
             print("Session Data inserted successfully")
@@ -289,17 +290,11 @@ class Table:
         :return:
         """
         try:
-            table_insert = "INSERT INTO PokerTables " \
-                           "SELECT %s, %s, %s, %s " \
-                           "WHERE NOT EXISTS " \
-                           "(SELECT TableName, TableStake, TableSize, TableDate " \
-                           "FROM PokerTables " \
-                           "WHERE TableName = %s AND TableStake = %s AND TableSize = %s AND TableDate = %s)"
-            cursor.execute(table_insert, (self.table_name, self.table_stake, self.table_size, self.table_date,
-                                          self.table_name, self.table_stake, self.table_size, self.table_date))
+            table_insert = "INSERT INTO PokerTables VALUES (%s, %s, %s, %s)"
+            cursor.execute(table_insert, (self.table_name, self.table_stake, self.table_size, self.table_date))
             sql_connection.commit()
             print("Table Data inserted successfully")
-        except errorcode as err:
+        except mysql.IntegrityError as err:
             print(f"Error: {err}")
 
 
@@ -323,16 +318,11 @@ class Player:
         :return:
         """
         try:
-            player_insert = "INSERT INTO Players " \
-                            "SELECT %s " \
-                            "WHERE NOT EXISTS " \
-                            "(SELECT PlayerName " \
-                            "FROM Players " \
-                            "WHERE PlayerName = %s)"
-            cursor.execute(player_insert, (self.player_name, self.player_name))
+            player_insert = "INSERT INTO Players VALUES (%s)"
+            cursor.execute(player_insert, (self.player_name, ))
             sql_connection.commit()
             print("Player Data inserted succesfully")
-        except errorcode as err:
+        except mysql.IntegrityError as err:
             print(f"Error: {err}")
 
 
@@ -357,16 +347,11 @@ class Hand:
         :return:
         """
         try:
-            hand_insert = "INSERT INTO Hands " \
-                          "SELECT %s, %s, %s " \
-                          "WHERE NOT EXISTS " \
-                          "(SELECT HandNumber, HandDate, HandResults " \
-                          "FROM Hands " \
-                          "WHERE HandNumber = %s AND HandDate = %s AND HandResults = %s)"
-            cursor.execute(hand_insert, (self.hand_number, self.date, self.result,
-                                         self.hand_number, self.date, self.result))
+            hand_insert = "INSERT INTO Hands (HandNumber, HandDate, HandResults) VALUES (%s, %s, %s)"
+            cursor.execute(hand_insert, (self.hand_number, self.date, self.result))
             sql_connection.commit()
-            print("Hand Date Inserted Succesfully")
+            print(cursor.execute("SELECT * FROM Hands"))
+            print("Hand Data Inserted Succesfully")
         except mysql.IntegrityError as err:
             print(f"Error: {err}")
 
