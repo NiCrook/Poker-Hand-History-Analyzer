@@ -2,13 +2,17 @@
 import csv
 import datetime
 from getpass import getpass
-import matplotlib as plt
+from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
+from matplotlib.backend_bases import key_press_handler
+from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 import mysql.connector as mysql
 from mysql.connector import errorcode
 import numpy as np
 import os
+import tkinter
 
-# ESTABLISH SQL CONNECTION
+### ESTABLISH SQL CONNECTION
 sql_connection = mysql.connect(
     host="localhost",
     user="root",
@@ -28,7 +32,6 @@ HAND_HISTORY_DB_TABLES['Sessions'] = (
     "   `SessionHands` int,"
     "   `SessionResults` float,"
     "   CONSTRAINT `SessionUnique` UNIQUE (SessionTable, SessionDate, SessionTime, SessionHands, SessionResults)"
-    # "   PRIMARY KEY (SessionID)"
     ")  ENGINE=InnoDB")
 HAND_HISTORY_DB_TABLES['Tables'] = (
     "CREATE TABLE `PokerTables` ("
@@ -36,7 +39,6 @@ HAND_HISTORY_DB_TABLES['Tables'] = (
     "   `TableStake` varchar(16),"
     "   `TableSize` int,"
     "   `TableDate` date NOT NULL"
-    # "   PRIMARY KEY (TableName)"
     ") ENGINE=InnoDB")
 HAND_HISTORY_DB_TABLES['Hands'] = (
     "CREATE TABLE `Hands` ("
@@ -47,11 +49,10 @@ HAND_HISTORY_DB_TABLES['Hands'] = (
     ") ENGINE=InnoDB")
 HAND_HISTORY_DB_TABLES['Players'] = (
     "CREATE TABLE `Players` ("
-    "   `PlayerName` varchar(16) PRIMARY KEY"
+    "   `PlayerName` varchar(16) PRIMARY KEY,"
     # "   `PlayerSessions` int,"
     # "   `PlayerHands` int,"
-    # "   `PlayerResults` float,"
-    # "   PRIMARY KEY (PlayerName)"
+    "   `PlayerResults` float"
     ") ENGINE=InnoDB")
 
 
@@ -69,6 +70,7 @@ def create_sql_database(cursor, db_name):
         exit(1)
 
 
+### DIRECTORY
 class HistoryDirectory:
     session_files = []
 
@@ -90,6 +92,7 @@ class HistoryDirectory:
             HistoryDirectory.session_files.append((profile_dir_str + "\\" + file))
 
 
+### FILE ROW CHECK
 class FileRow:
     def __init__(self, file):
         """
@@ -115,6 +118,7 @@ class FileRow:
                 return True
 
 
+### HAND PARSING
 class Session:
     def __init__(self, file):
         """
@@ -312,16 +316,31 @@ class Player:
     def __str__(self):
         return str(self.__dict__)
 
-    def insert_player_data(self):
+    def insert_player_name(self):
         """
-        Insert Player data - player name
+        Insert Player Name
         :return:
         """
         try:
-            player_insert = "INSERT INTO Players VALUES (%s)"
-            cursor.execute(player_insert, (self.player_name, ))
+            name_insert = "INSERT INTO Players (PlayerName) VALUES (%s)"
+            cursor.execute(name_insert, (self.player_name,))
             sql_connection.commit()
-            print("Player Data inserted succesfully")
+            print("Player Name inserted succesfully")
+        except mysql.IntegrityError as err:
+            print(f"Error: {err}")
+
+    def update_player_results(self):
+        """
+        Insert Player Results
+        :return:
+        """
+        try:
+            result_insert = "UPDATE Players " \
+                            "SET PlayerResults = (SELECT ROUND(SUM(SessionResults), 2) FROM Sessions) " \
+                            "WHERE PlayerName = %s"
+            cursor.execute(result_insert, (self.player_name, ))
+            sql_connection.commit()
+            print("Player Results inserted succesfully")
         except mysql.IntegrityError as err:
             print(f"Error: {err}")
 
@@ -350,10 +369,81 @@ class Hand:
             hand_insert = "INSERT INTO Hands (HandNumber, HandDate, HandResults) VALUES (%s, %s, %s)"
             cursor.execute(hand_insert, (self.hand_number, self.date, self.result))
             sql_connection.commit()
-            print(cursor.execute("SELECT * FROM Hands"))
             print("Hand Data Inserted Succesfully")
         except mysql.IntegrityError as err:
             print(f"Error: {err}")
+
+
+### TKINTER FRAMES
+# class ContainerFrame(tkinter.Tk):
+#     def __init__(self, *args, **kwargs):
+#         tkinter.Tk.__init__(self, *args, **kwargs)
+#
+#         self.container = tkinter.Frame(self)
+#         self.title("Poker Hand History Analyzer")
+#         self.container.grid_rowconfigure(0, weight=1)
+#         self.container.grid_columnconfigure(0, weight=1)
+#         self.frame_list = [StartFrame, PlayerFrame]
+#         self.frames = {}
+#
+#         for F in self.frame_list:
+#             page_name = F.__name__
+#             frame = F(parent=self.container, controller=self)
+#             self.frames[page_name] = frame
+#             frame.grid(row=0, column=0, stickey="nsew")
+#         self.show_frame("StartFrames")
+#
+#     def show_frame(self, page_name):
+#         for frame in self.frames.values():
+#             frame.grid_remove()
+#             frame = self.frames[page_name]
+#             frame.grid()
+#
+#     def create_frame(self, frame_name):
+#         self.frames[frame_name] = frame_name(parent=self.container, controller=self)
+#         self.frames[frame_name].grid(row=0, column=0, sticky='nsew')
+#
+#
+# class StartFrame(tkinter.Frame):
+#     def __init__(self, parent, controller):
+#         tkinter.Frame.__init__(self, parent)
+#         self.controller = controller
+#
+#         name_label = tkinter.Label(self, text="Poker Hand History Analyzer")
+#         start_button = tkinter.Button(self, text="Start', command=self.start_button_push")
+#
+#         name_label.grid(row=1, column=1, columnspan=3)
+#         start_button.grid(row=2, column=1)
+#
+#     def start_button_push(self):
+#         self.controller.show_frame("PlayerFrame")
+#
+#
+# class PlayerFrame(tkinter.Frame):
+#     def __init__(self, parent, controller):
+#         tkinter.Frame.__init__(self, parent)
+#         self.controller = controller
+#
+#         self.player_buttons = {}
+#         self.player_labels = {
+#             'player_stats': tkinter.Label(self, text="Statistics"),
+#             'player_name': tkinter.Label(self, text="Player Name: "),
+#             'no_hands': tkinter.Label(self, text="Number of Hands: "),
+#             'no_sessions': tkinter.Label(self, text="Number of Sessions: "),
+#             'player_results': tkinter.Label(self, text="Player Results: "),
+#             'hand_results_graph': tkinter.Label(self, text="Hand Results"),
+#             'session_results_graph': tkinter.Label(self, text="Session Results"),
+#             'hand_list': tkinter.Label(self, text="Hand List"),
+#             'session_list': tkinter.Label(self, text="Session List"),
+#             'filters': tkinter.Label(self, text="Filters"),
+#             'pn_var': tkinter.Label(self, textvariable=cursor.execute("SELECT * FROM Players (PlayerName")),
+#             'hn_var': tkinter.Label(self, textvaraible=cursor.execute("SELECT * FROM Hands ORDERED BY HandID DESC"
+#                                                                       "LIMIT 1")),
+#             'sn_var': tkinter.Label(self, textvariable=cursor.execute("SELECT * FROM Session ORDERED BY SessionID DESC"
+#                                                                       "LIMIT 1")),
+#             'retrn_var': tkinter.Label(self, textvariable=cursor.execute(""))
+#         }
+#         self.player_listbox = {}
 
 
 if __name__ == '__main__':
@@ -386,6 +476,7 @@ if __name__ == '__main__':
 
     dir = HistoryDirectory("PolarFox")
     dir.find_profile_history()
+    plyr = Player(dir.user_name)
     for file in range(0, len(dir.session_files)):
         session_file = open(dir.session_files[file], 'r')
         file_reader = list(csv.reader(session_file, delimiter="\n"))
@@ -397,10 +488,9 @@ if __name__ == '__main__':
         sess.check_date()
 
         tabl = Table(sess.table_name, sess.table_stake, sess.table_size, sess.date)
-        plyr = Player(dir.user_name)
 
         tabl.insert_table_data()
-        plyr.insert_player_data()
+        plyr.insert_player_name()
 
         counter = 0
         while counter != len(file_reader):
@@ -421,3 +511,4 @@ if __name__ == '__main__':
 
         sess.check_time_played()
         sess.insert_session_data()
+    plyr.update_player_results()
