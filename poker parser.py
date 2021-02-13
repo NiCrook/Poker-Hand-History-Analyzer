@@ -134,6 +134,7 @@ class Session:
         self.hands = {}
         self.no_of_hands = int
         self.hand_results = []
+        self.hand_culm_results = []
 
         self.small = 0
         self.big = 0
@@ -143,7 +144,6 @@ class Session:
         self.won = 0
         self.actions = 0
         self.result = 0
-        # self.session_results = self.hand_results[-1] - self.hand_results[0]
 
     def __str__(self):
         return str(self.__dict__)
@@ -233,6 +233,14 @@ class Session:
                 self.small) + float(self.big) + float(self.call_bet) + float(self._raise) - float(self.bet_return)
             self.result = round(self.won, 2) - round(self.actions, 2)
         self.hand_results.append(self.result)
+
+    def get_culm_results(self):
+        counter = 0
+        previous_result = 0
+        while counter != len(self.hand_results):
+            self.hand_culm_results.append(previous_result + self.hand_results[counter])
+            previous_result = self.hand_culm_results[-1]
+            counter += 1
 
     def new_hand(self):
         """
@@ -400,7 +408,7 @@ class MainFrame:
         self.player_buttons = {
             'import': tk.Button(self.master, text="Import"),
             'hands_filter': tk.Button(self.master, text="Hands"),
-            'sessions_filter': tk.Button(self.master, text='Sessions', command=self.build_graph),
+            'sessions_filter': tk.Button(self.master, text='Sessions', command=lambda: self.build_graph("session_button")),
             'quit': tk.Button(self.master, text="Quit", command=exit)
         }
 
@@ -437,18 +445,25 @@ class MainFrame:
         self.player_buttons['import'].grid(row=3, column=5)
         self.player_buttons['quit'].grid(row=4, column=5)
 
-    def build_graph(self):
-        cursor.execute("SELECT SessionID FROM Sessions ORDER BY SessionID ASC")
-        no_sess_query = cursor.fetchall()
-        x = [int(result) for (result,) in no_sess_query]
+    def build_graph(self, button):
+        if button == "session_button":
+            cursor.execute("SELECT SessionID FROM Sessions ORDER BY SessionID ASC")
+            no_sess_query = cursor.fetchall()
+            self.x = [int(result) for (result,) in no_sess_query]
+            self.x.insert(0, 0)
 
-        cursor.execute("SELECT SessionResults FROM Sessions")
-        sess_results_query = cursor.fetchall()
-        y = [int(result) for (result,) in sess_results_query]
+            cursor.execute("SELECT SessionResults FROM Sessions ORDER BY SessionID ASC")
+            sess_results_query = cursor.fetchall()
+            results = [float(result) for (result,) in sess_results_query]
+            self.y = [0]
+            previous_result = 0
+            for result in results:
+                self.y.append(previous_result + result)
+                previous_result = self.y[-1]
 
         fig = Figure(figsize=(3, 3), dpi=100)
         graph = fig.add_subplot(111)
-        graph.plot(x, y)
+        graph.plot(self.x, self.y)
 
         canvas = FigureCanvasTkAgg(fig, self.master)
         canvas.get_tk_widget().grid(row=3, column=3)
@@ -521,6 +536,7 @@ if __name__ == '__main__':
             else:
                 counter += 1
 
+        sess.get_culm_results()
         sess.check_time_played()
         sess.insert_session_data()
     plyr.update_player_results()
