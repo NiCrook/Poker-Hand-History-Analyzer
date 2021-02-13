@@ -2,15 +2,13 @@
 import csv
 import datetime
 from getpass import getpass
-from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
-from matplotlib.backend_bases import key_press_handler
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-import matplotlib.pyplot as plt
 import mysql.connector as mysql
 from mysql.connector import errorcode
-import numpy as np
 import os
-import tkinter
+import tkinter as tk
+from tkinter import StringVar, IntVar
 
 ### ESTABLISH SQL CONNECTION
 sql_connection = mysql.connect(
@@ -338,7 +336,7 @@ class Player:
             result_insert = "UPDATE Players " \
                             "SET PlayerResults = (SELECT ROUND(SUM(SessionResults), 2) FROM Sessions) " \
                             "WHERE PlayerName = %s"
-            cursor.execute(result_insert, (self.player_name, ))
+            cursor.execute(result_insert, (self.player_name,))
             sql_connection.commit()
             print("Player Results inserted succesfully")
         except mysql.IntegrityError as err:
@@ -374,76 +372,90 @@ class Hand:
             print(f"Error: {err}")
 
 
-### TKINTER FRAMES
-# class ContainerFrame(tkinter.Tk):
-#     def __init__(self, *args, **kwargs):
-#         tkinter.Tk.__init__(self, *args, **kwargs)
-#
-#         self.container = tkinter.Frame(self)
-#         self.title("Poker Hand History Analyzer")
-#         self.container.grid_rowconfigure(0, weight=1)
-#         self.container.grid_columnconfigure(0, weight=1)
-#         self.frame_list = [StartFrame, PlayerFrame]
-#         self.frames = {}
-#
-#         for F in self.frame_list:
-#             page_name = F.__name__
-#             frame = F(parent=self.container, controller=self)
-#             self.frames[page_name] = frame
-#             frame.grid(row=0, column=0, stickey="nsew")
-#         self.show_frame("StartFrames")
-#
-#     def show_frame(self, page_name):
-#         for frame in self.frames.values():
-#             frame.grid_remove()
-#             frame = self.frames[page_name]
-#             frame.grid()
-#
-#     def create_frame(self, frame_name):
-#         self.frames[frame_name] = frame_name(parent=self.container, controller=self)
-#         self.frames[frame_name].grid(row=0, column=0, sticky='nsew')
-#
-#
-# class StartFrame(tkinter.Frame):
-#     def __init__(self, parent, controller):
-#         tkinter.Frame.__init__(self, parent)
-#         self.controller = controller
-#
-#         name_label = tkinter.Label(self, text="Poker Hand History Analyzer")
-#         start_button = tkinter.Button(self, text="Start', command=self.start_button_push")
-#
-#         name_label.grid(row=1, column=1, columnspan=3)
-#         start_button.grid(row=2, column=1)
-#
-#     def start_button_push(self):
-#         self.controller.show_frame("PlayerFrame")
-#
-#
-# class PlayerFrame(tkinter.Frame):
-#     def __init__(self, parent, controller):
-#         tkinter.Frame.__init__(self, parent)
-#         self.controller = controller
-#
-#         self.player_buttons = {}
-#         self.player_labels = {
-#             'player_stats': tkinter.Label(self, text="Statistics"),
-#             'player_name': tkinter.Label(self, text="Player Name: "),
-#             'no_hands': tkinter.Label(self, text="Number of Hands: "),
-#             'no_sessions': tkinter.Label(self, text="Number of Sessions: "),
-#             'player_results': tkinter.Label(self, text="Player Results: "),
-#             'hand_results_graph': tkinter.Label(self, text="Hand Results"),
-#             'session_results_graph': tkinter.Label(self, text="Session Results"),
-#             'hand_list': tkinter.Label(self, text="Hand List"),
-#             'session_list': tkinter.Label(self, text="Session List"),
-#             'filters': tkinter.Label(self, text="Filters"),
-#             'pn_var': tkinter.Label(self, textvariable=cursor.execute("SELECT * FROM Players (PlayerName")),
-#             'hn_var': tkinter.Label(self, textvaraible=cursor.execute("SELECT * FROM Hands ORDERED BY HandID DESC"
-#                                                                       "LIMIT 1")),
-#             'sn_var': tkinter.Label(self, textvariable=cursor.execute("SELECT * FROM Session ORDERED BY SessionID DESC"
-#                                                                       "LIMIT 1")),
-#             'retrn_var': tkinter.Label(self, textvariable=cursor.execute(""))
-#         }
-#         self.player_listbox = {}
+## TKINTER FRAME
+class MainFrame:
+    def __init__(self, master):
+        self.master = master
+        master.title = "Poker Hand History Analyzer"
+
+        cursor.execute("SELECT PlayerName FROM Players")
+        self.player_name = cursor.fetchall()
+        cursor.execute("SELECT HandID FROM Hands ORDER BY HandID DESC LIMIT 1")
+        self.no_hands = cursor.fetchall()
+        cursor.execute("SELECT SessionID FROM Sessions ORDER BY SessionID DESC LIMIT 1")
+        self.no_sess = cursor.fetchall()
+        cursor.execute("SELECT ROUND(SUM(SessionResults), 2) FROM Sessions")
+        self.results = cursor.fetchall()
+
+        self.pn_var = StringVar()
+        self.hn_var = IntVar()
+        self.sn_var = IntVar()
+        self.results_var = IntVar()
+
+        self.pn_var.set(self.player_name)
+        self.hn_var.set(self.no_hands)
+        self.sn_var.set(self.no_sess)
+        self.results_var.set(self.results)
+
+        self.player_buttons = {
+            'import': tk.Button(self.master, text="Import"),
+            'hands_filter': tk.Button(self.master, text="Hands"),
+            'sessions_filter': tk.Button(self.master, text='Sessions', command=self.build_graph),
+            'quit': tk.Button(self.master, text="Quit", command=exit)
+        }
+
+        self.player_labels = {
+            'stats': tk.Label(self.master, text="Statistics"),
+            'player_name': tk.Label(self.master, text="Player Name: "),
+            'no_hands': tk.Label(self.master, text="Number of Hands: "),
+            'no_sessions': tk.Label(self.master, text="Number of Sessions: "),
+            'player_results': tk.Label(self.master, text="Player Results: "),
+            'hand_results_graph': tk.Label(self.master, text="Hand Results"),
+            'session_results_graph': tk.Label(self.master, text="Session Results"),
+            'hand_list': tk.Label(self.master, text="Hand List"),
+            'session_list': tk.Label(self.master, text="Session List"),
+            'filters': tk.Label(self.master, text="Filters"),
+            'pn_var_label': tk.Label(self.master, textvariable=self.pn_var),
+            'hn_var_label': tk.Label(self.master, textvariable=self.hn_var),
+            'sn_var_label': tk.Label(self.master, textvariable=self.sn_var),
+            'results_var_label': tk.Label(self.master, textvariable=self.results_var)
+        }
+
+        self.player_labels['stats'].grid(row=0, column=0, columnspan=2)
+        self.player_labels['player_name'].grid(row=1, column=0)
+        self.player_labels['no_hands'].grid(row=2, column=0)
+        self.player_labels['no_sessions'].grid(row=3, column=0)
+        self.player_labels['player_results'].grid(row=4, column=0)
+
+        self.player_labels['pn_var_label'].grid(row=1, column=1)
+        self.player_labels['hn_var_label'].grid(row=2, column=1)
+        self.player_labels['sn_var_label'].grid(row=3, column=1)
+        self.player_labels['results_var_label'].grid(row=4, column=1)
+
+        self.player_buttons['hands_filter'].grid(row=1, column=5)
+        self.player_buttons['sessions_filter'].grid(row=2, column=5)
+        self.player_buttons['import'].grid(row=3, column=5)
+        self.player_buttons['quit'].grid(row=4, column=5)
+
+    def build_graph(self):
+        cursor.execute("SELECT SessionID FROM Sessions ORDER BY SessionID ASC")
+        no_sess_query = cursor.fetchall()
+        x = [int(result) for (result,) in no_sess_query]
+
+        cursor.execute("SELECT SessionResults FROM Sessions")
+        sess_results_query = cursor.fetchall()
+        y = [int(result) for (result,) in sess_results_query]
+
+        fig = Figure(figsize=(3, 3), dpi=100)
+        graph = fig.add_subplot(111)
+        graph.plot(x, y)
+
+        canvas = FigureCanvasTkAgg(fig, self.master)
+        canvas.get_tk_widget().grid(row=3, column=3)
+
+    def exit_frame(self):
+        self.master.quit()
+        self.master.destroy()
 
 
 if __name__ == '__main__':
@@ -512,3 +524,6 @@ if __name__ == '__main__':
         sess.check_time_played()
         sess.insert_session_data()
     plyr.update_player_results()
+    window = tk.Tk()
+    gui = MainFrame(window)
+    window.mainloop()
