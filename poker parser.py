@@ -407,8 +407,9 @@ class MainFrame:
 
         self.player_buttons = {
             'import': tk.Button(self.master, text="Import"),
-            'hands_filter': tk.Button(self.master, text="Hands"),
-            'sessions_filter': tk.Button(self.master, text='Sessions', command=lambda: self.build_graph("session_button")),
+            'hands_filter': tk.Button(self.master, text="Hands", command=lambda: self.build_graph("hand_button")),
+            'sessions_filter': tk.Button(self.master, text='Sessions',
+                                         command=lambda: self.build_graph("session_button")),
             'quit': tk.Button(self.master, text="Quit", command=exit)
         }
 
@@ -446,7 +447,21 @@ class MainFrame:
         self.player_buttons['quit'].grid(row=4, column=5)
 
     def build_graph(self, button):
-        if button == "session_button":
+        if button == "hand_button":
+            cursor.execute("SELECT HandID FROM Hands ORDER BY HandID ASC")
+            no_hands_query = cursor.fetchall()
+            self.x = [int(result) for (result,) in no_hands_query]
+            self.x.insert(0, 0)
+
+            cursor.execute("SELECT HandResults FROM Hands ORDER BY HandID ASC")
+            hand_results_query = cursor.fetchall()
+            hand_results = [float(result) for (result,) in hand_results_query]
+            self.y = [0]
+            previous_result = 0
+            for result in hand_results:
+                self.y.append(previous_result + result)
+                previous_result = self.y[-1]
+        elif button == "session_button":
             cursor.execute("SELECT SessionID FROM Sessions ORDER BY SessionID ASC")
             no_sess_query = cursor.fetchall()
             self.x = [int(result) for (result,) in no_sess_query]
