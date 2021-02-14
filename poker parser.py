@@ -406,7 +406,7 @@ class MainFrame:
         self.results_var.set(self.results)
 
         self.player_buttons = {
-            'import': tk.Button(self.master, text="Import"),
+            'import': tk.Button(self.master, text="Import", command=self.import_hands),
             'hands_filter': tk.Button(self.master, text="Hands", command=lambda: self.build_graph("hand_button")),
             'sessions_filter': tk.Button(self.master, text='Sessions',
                                          command=lambda: self.build_graph("session_button")),
@@ -415,10 +415,10 @@ class MainFrame:
 
         self.player_labels = {
             'stats': tk.Label(self.master, text="Statistics"),
-            'player_name': tk.Label(self.master, text="Player Name: "),
-            'no_hands': tk.Label(self.master, text="Number of Hands: "),
-            'no_sessions': tk.Label(self.master, text="Number of Sessions: "),
-            'player_results': tk.Label(self.master, text="Player Results: "),
+            'player_name': tk.Label(self.master, text="Player Name:"),
+            'no_hands': tk.Label(self.master, text="Number of Hands:"),
+            'no_sessions': tk.Label(self.master, text="Number of Sessions:"),
+            'player_results': tk.Label(self.master, text="Player Results:"),
             'hand_results_graph': tk.Label(self.master, text="Hand Results"),
             'session_results_graph': tk.Label(self.master, text="Session Results"),
             'hand_list': tk.Label(self.master, text="Hand List"),
@@ -430,23 +430,62 @@ class MainFrame:
             'results_var_label': tk.Label(self.master, textvariable=self.results_var)
         }
 
-        self.player_labels['stats'].grid(row=0, column=0, columnspan=2)
-        self.player_labels['player_name'].grid(row=1, column=0)
-        self.player_labels['no_hands'].grid(row=2, column=0)
-        self.player_labels['no_sessions'].grid(row=3, column=0)
-        self.player_labels['player_results'].grid(row=4, column=0)
+        self.player_labels['player_name'].grid(row=0, column=0)
+        self.player_labels['no_hands'].grid(row=0, column=2)
+        self.player_labels['no_sessions'].grid(row=0, column=4)
+        self.player_labels['player_results'].grid(row=0, column=6)
 
-        self.player_labels['pn_var_label'].grid(row=1, column=1)
-        self.player_labels['hn_var_label'].grid(row=2, column=1)
-        self.player_labels['sn_var_label'].grid(row=3, column=1)
-        self.player_labels['results_var_label'].grid(row=4, column=1)
+        self.player_labels['pn_var_label'].grid(row=0, column=1)
+        self.player_labels['hn_var_label'].grid(row=0, column=3)
+        self.player_labels['sn_var_label'].grid(row=0, column=5)
+        self.player_labels['results_var_label'].grid(row=0, column=7)
 
-        self.player_buttons['hands_filter'].grid(row=1, column=5)
-        self.player_buttons['sessions_filter'].grid(row=2, column=5)
-        self.player_buttons['import'].grid(row=3, column=5)
-        self.player_buttons['quit'].grid(row=4, column=5)
+        self.player_buttons['hands_filter'].grid(row=1, column=0)
+        self.player_buttons['sessions_filter'].grid(row=1, column=1)
+        self.player_buttons['import'].grid(row=1, column=2)
+        self.player_buttons['quit'].grid(row=1, column=3)
+
+    def import_hands(self):
+        for file in range(0, len(dir.session_files)):
+            session_file = open(dir.session_files[file], 'r')
+            file_reader = list(csv.reader(session_file, delimiter="\n"))
+
+            sess = Session(file_reader)
+            sess.check_for_table_name()
+            sess.check_for_table_stake()
+            sess.check_for_table_size()
+            sess.check_date()
+
+            tabl = Table(sess.table_name, sess.table_stake, sess.table_size, sess.date)
+
+            tabl.insert_table_data()
+            plyr.insert_player_name()
+
+            counter = 0
+            while counter != len(file_reader):
+                file = FileRow(file_reader[counter])
+                if file.check_row("Hand #"):
+                    sess.new_hand()
+                    sess.check_hands(counter)
+                    counter += 1
+                elif file.check_row(str(dir.user_name)):
+                    sess.get_results(counter, dir.user_name)
+                    counter += 1
+                elif not file_reader[counter]:
+                    hand = Hand(sess.hand_no, sess.date, sess.result)
+                    hand.insert_hand_data()
+                    counter += 1
+                else:
+                    counter += 1
+
+            sess.get_culm_results()
+            sess.check_time_played()
+            sess.insert_session_data()
+        plyr.update_player_results()
 
     def build_graph(self, button):
+        fig = Figure(figsize=(5, 5), dpi=100)
+        graph = fig.add_subplot(111)
         if button == "hand_button":
             cursor.execute("SELECT HandID FROM Hands ORDER BY HandID ASC")
             no_hands_query = cursor.fetchall()
@@ -461,6 +500,8 @@ class MainFrame:
             for result in hand_results:
                 self.y.append(previous_result + result)
                 previous_result = self.y[-1]
+            graph.set_xlabel("Hands Played")
+            graph.set_ylabel("Total Results in $")
         elif button == "session_button":
             cursor.execute("SELECT SessionID FROM Sessions ORDER BY SessionID ASC")
             no_sess_query = cursor.fetchall()
@@ -475,13 +516,13 @@ class MainFrame:
             for result in results:
                 self.y.append(previous_result + result)
                 previous_result = self.y[-1]
+            graph.set_xlabel("Sessions Played")
+            graph.set_ylabel("Total Results in $")
 
-        fig = Figure(figsize=(3, 3), dpi=100)
-        graph = fig.add_subplot(111)
         graph.plot(self.x, self.y)
 
         canvas = FigureCanvasTkAgg(fig, self.master)
-        canvas.get_tk_widget().grid(row=3, column=3)
+        canvas.get_tk_widget().grid(row=2, column=0, columnspan=8)
 
     def exit_frame(self):
         self.master.quit()
@@ -519,42 +560,6 @@ if __name__ == '__main__':
     dir = HistoryDirectory("PolarFox")
     dir.find_profile_history()
     plyr = Player(dir.user_name)
-    for file in range(0, len(dir.session_files)):
-        session_file = open(dir.session_files[file], 'r')
-        file_reader = list(csv.reader(session_file, delimiter="\n"))
-
-        sess = Session(file_reader)
-        sess.check_for_table_name()
-        sess.check_for_table_stake()
-        sess.check_for_table_size()
-        sess.check_date()
-
-        tabl = Table(sess.table_name, sess.table_stake, sess.table_size, sess.date)
-
-        tabl.insert_table_data()
-        plyr.insert_player_name()
-
-        counter = 0
-        while counter != len(file_reader):
-            file = FileRow(file_reader[counter])
-            if file.check_row("Hand #"):
-                sess.new_hand()
-                sess.check_hands(counter)
-                counter += 1
-            elif file.check_row(str(dir.user_name)):
-                sess.get_results(counter, dir.user_name)
-                counter += 1
-            elif not file_reader[counter]:
-                hand = Hand(sess.hand_no, sess.date, sess.result)
-                hand.insert_hand_data()
-                counter += 1
-            else:
-                counter += 1
-
-        sess.get_culm_results()
-        sess.check_time_played()
-        sess.insert_session_data()
-    plyr.update_player_results()
     window = tk.Tk()
     gui = MainFrame(window)
     window.mainloop()
