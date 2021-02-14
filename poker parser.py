@@ -421,6 +421,7 @@ class MainFrame:
             'player_results': tk.Label(self.master, text="Player Results:"),
             'hand_results_graph': tk.Label(self.master, text="Hand Results"),
             'session_results_graph': tk.Label(self.master, text="Session Results"),
+            'import_successful': tk.Label(self.master, text="Import successful!"),
             'hand_list': tk.Label(self.master, text="Hand List"),
             'session_list': tk.Label(self.master, text="Session List"),
             'filters': tk.Label(self.master, text="Filters"),
@@ -482,6 +483,7 @@ class MainFrame:
             sess.check_time_played()
             sess.insert_session_data()
         plyr.update_player_results()
+        self.player_labels['import_successful'].grid(row=1, column=4)
 
     def build_graph(self, button):
         fig = Figure(figsize=(5, 5), dpi=100)
